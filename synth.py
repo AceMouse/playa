@@ -251,8 +251,16 @@ def clean_text(text):
         text = re.sub('([\W_ ])e?xp([\W_ ])', r'\1experience\2', text, flags=re.IGNORECASE)
         text = re.sub('(->)|(~)', r' to ', text)
         text = re.sub(' +', r' ', text)
-        return text 
-
+        return uncensor_text(text) 
+def uncensor_text(text):
+    text = re.sub('(m|M)*th*rf*ck*r', r'\1otherfucker', text)
+    text = re.sub('(b|B)*itch', r'\1itch', text)
+    text = re.sub('(g|G)*dd*mn*d', r'\1oddamned', text)
+    text = re.sub('(g|G)*dd*mm*t', r'\1oddammit', text)
+    text = re.sub('(f|F)*ck*ng', r'\1ucking', text)
+    text = re.sub('(f|F)*ck', r'\1uck', text)
+    text = re.sub('(b|B)*llsh*t', r'\1ullshit', text)
+    return text 
 import shutil
 def rm_content(folder):
     shutil.rmtree(folder)
