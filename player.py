@@ -74,10 +74,18 @@ def play_ch(folder,speed,book):
     mp3_fp = f"{folder}/ch{ch:04}.mp3"
     print(LINE_UP, end=LINE_CLEAR)
     print(LINE_UP, end=LINE_CLEAR)
-    _print(f"playing {book} ch: {ch}\n")
+    print(f"playing {book} ch: {ch}\n")
+    w = 1 
     while not os.path.isfile(mp3_fp):
-        _print(f"{mp3_fp} not found, retrying in 10s")
-        time.sleep(10)
+        print(LINE_UP, end=LINE_CLEAR)
+        print(LINE_UP, end=LINE_CLEAR)
+        print(f"{mp3_fp} not found, retrying in 10s ({w})")
+        w += 1
+        x, timedOut = timedKey(timeout=10, allowCharacters=f"t")
+        if timedOut:
+            continue
+        if x == 't':
+            quit(0)
     dur = int(run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", mp3_fp]).stdout.decode().split('.')[0])+1
 
     p = Process(target=update_t, args=(working,speed,dur))
@@ -116,22 +124,16 @@ def play_ch(folder,speed,book):
             player_p.terminate()
             p.terminate()
             quit(0)
-        if x == KEY_LEFT:
+        if x in [KEY_LEFT,KEY_RIGHT]:
             with open(f"{working}/t.txt","r") as tf:
                 t = int(tf.read())
             with open(f"{working}/t.txt","w") as tf:
-                t = max(t-15,0)
+                t = max(t-15,0)if x == KEY_LEFT else min(t+15,dur)
                 tf.write(str(t))
             player_p.terminate()
             player_p = popen(["ffplay","-af",f"atempo={speed}", "-nodisp", "-autoexit", "-stats", "-ss", f"{t}s", mp3_fp])
-        if x == KEY_RIGHT:
-            with open(f"{working}/t.txt","r") as tf:
-                t = int(tf.read())
-            with open(f"{working}/t.txt","w") as tf:
-                t = min(t+15,dur)
-                tf.write(str(t))
-            player_p.terminate()
-            player_p = popen(["ffplay","-af",f"atempo={speed}", "-nodisp", "-autoexit", "-stats", "-ss", f"{t}s", mp3_fp])
+            if paused:
+                os.kill(player_p.pid, signal.SIGSTOP)
 
     player_p.wait()
     p.terminate()
