@@ -213,7 +213,10 @@ def main():
             time.sleep(2)
             mp3_fp = f"{folder}/ch{ch:04}.mp3"
             if new and not os.path.isfile(mp3_fp):
-                text = clean_text(driver.find_element(By.CLASS_NAME,"moz-reader-content").text)
+                text = driver.find_element(By.CLASS_NAME,"moz-reader-content").text
+                if 'novelfull' in url:
+                    text = novel_full_clean(text)
+                text = clean_text(text)
                 _print(text)
                 text = f"chapter {ch}\n{text}"
                 sentances = text.split('\n')
@@ -241,25 +244,34 @@ def main():
         driver.quit()
 
 def clean_text(text):
-        text = clean(text,lower=False)
-        re.sub(r'''(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'".,<>?«»“”‘’]))''', " ", text)
-        text = text.replace('...','.').replace('..','.').replace('[','').replace(']','')
-        text = re.sub('([a-zA-Z])([0-9])', r'\1 \2', text, flags=re.MULTILINE)
-        text = re.sub('(\d+(\.\d+)?) */ *(\d+(\.\d+)?)', r'\1 out of \3', text)
-        text = re.sub('^[\W_]+$', r'', text, flags=re.MULTILINE)
-        text = re.sub('([\W_ ])lv([\W_ ])', r'\1level\2', text, flags=re.IGNORECASE)
-        text = re.sub('([\W_ ])e?xp([\W_ ])', r'\1experience\2', text, flags=re.IGNORECASE)
-        text = re.sub('(->)|(~)', r' to ', text)
-        text = re.sub(' +', r' ', text)
-        return uncensor_text(text) 
+    text = clean(text,lower=False)
+    text = re.sub(r'''(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'".,<>?«»“”‘’]))''', " ", text)
+    text = re.sub('\.\.+', '.', text)
+    text = re.sub('\[|\]', '', text)
+    text = re.sub('([a-zA-Z])([0-9])', r'\1 \2', text, flags=re.MULTILINE)
+    text = re.sub('(\d+(\.\d+)?) */ *(\d+(\.\d+)?)', r'\1 out of \3', text)
+    text = re.sub('^[\W_]+$', '', text, flags=re.MULTILINE)
+    text = re.sub('([\W_ ])lv([\W_ ])', r'\1level\2', text, flags=re.IGNORECASE)
+    text = re.sub('([\W_ ])e?xp([\W_ ])', r'\1experience\2', text, flags=re.IGNORECASE)
+    text = re.sub('(->)|(~)', ' to ', text)
+    text = re.sub(' +', ' ', text)
+    return uncensor_text(text) 
+
 def uncensor_text(text):
-    text = re.sub('(m|M)*th*rf*ck*r', r'\1otherfucker', text)
-    text = re.sub('(b|B)*itch', r'\1itch', text)
-    text = re.sub('(g|G)*dd*mn*d', r'\1oddamned', text)
-    text = re.sub('(g|G)*dd*mm*t', r'\1oddammit', text)
-    text = re.sub('(f|F)*ck*ng', r'\1ucking', text)
-    text = re.sub('(f|F)*ck', r'\1uck', text)
-    text = re.sub('(b|B)*llsh*t', r'\1ullshit', text)
+    text = re.sub('(m|M) ?\* ?th ?\* ?rf ?\* ?ck ?\* ?r', r'\1otherfucker', text)
+    text = re.sub('(b|B) ?\* ?itch', r'\1itch', text)
+    text = re.sub('(g|G) ?\* ?dd ?\* ?mn ?\* ?d', r'\1oddamned', text)
+    text = re.sub('(g|G) ?\* ?dd ?\* ?mm ?\* ?t', r'\1oddammit', text)
+    text = re.sub('(f|F) ?\* ?ck ?\* ?ng', r'\1ucking', text)
+    text = re.sub('(f|F) ?\* ?ck', r'\1uck', text)
+    text = re.sub('(b|B) ?\* ?llsh ?\* ?t', r'\1ullshit', text)
+    return text 
+
+
+def novel_full_clean(text):
+    text = re.sub('= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =(.|\n)*', '', text)
+    text = re.sub('If you find any errors ( Ads popup, ads redirect, broken links, non-standard content, etc.. ), Please let us know < report chapter > so we can fix it as soon as possible(.|\n)*', '', text)
+    text = re.sub('Tip: You can use left, right, A and D keyboard keys to browse between chapters(.|\n)*', '', text, flags=re.MULTILINE)
     return text 
 import shutil
 def rm_content(folder):
