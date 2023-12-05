@@ -85,7 +85,7 @@ def play_ch(folder,speed,book):
         if timedOut:
             continue
         if x == 't':
-            quit(0)
+            return 1 
     dur = int(run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", mp3_fp]).stdout.decode().split('.')[0])+1
 
     p = Process(target=update_t, args=(working,speed,dur))
@@ -111,7 +111,6 @@ def play_ch(folder,speed,book):
         if timedOut:
             break
 
-#        print("key:", x)
         if x in ' p':
             if paused:
                 os.kill(player_p.pid, signal.SIGCONT)
@@ -121,9 +120,12 @@ def play_ch(folder,speed,book):
                 os.kill(p.pid, signal.SIGSTOP)
             paused = not paused
         if x == 't':
+            if paused:
+                os.kill(player_p.pid, signal.SIGCONT)
+                os.kill(p.pid, signal.SIGCONT)
             player_p.terminate()
             p.terminate()
-            quit(0)
+            return 1 
         if x in [KEY_LEFT,KEY_RIGHT]:
             with open(f"{working}/t.txt","r") as tf:
                 t = int(tf.read())
@@ -141,8 +143,9 @@ def play_ch(folder,speed,book):
         tf.write(str(0))
     with open(f"{working}/pch.txt","w") as chf:
         chf.write(str(ch+1))
+    return 0 
 
-def play():
+def get_input():
     book = "" 
     if len(sys.argv) <= 1:
         books = []
@@ -154,14 +157,20 @@ def play():
         print(f"chose a book (1-{len(books)}):")
         for i,b in enumerate(books):
             print(f"  {i+1} {b}")
-        book = books[int(input())-1]
+        i = input()
+        if i == 't':
+            quit(0)
+        book = books[int(i)-1]
         for _ in range(len(books)+2):
             print(LINE_UP, end=LINE_CLEAR)
     else:
         book = sys.argv[1]
 
     folder = f"output/{book}"
-    speed = int(input("choose a speed:\n"))
+    i = input("choose a speed:\n")
+    if i == 't':
+        quit(0)
+    speed = int(i)
 
     if len(sys.argv) > 2:
         with open(f"{folder}/.working/pch.txt","w") as chf:
@@ -171,8 +180,13 @@ def play():
     if len(sys.argv) > 3:
         with open(f"{folder}/.working/t.txt","w") as tf:
             tf.write(sys.argv[3])
+    return (folder,speed,book)
+
+def play():
+    folder, speed, book = get_input()
     while True:
-        play_ch(folder, speed, book)
+        if play_ch(folder, speed, book) == 1:
+            folder, speed, book = get_input()
 
 LINE_UP = '\033[1A'
 LINE_CLEAR = '\x1b[2K'
