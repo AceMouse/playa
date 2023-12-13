@@ -1,4 +1,4 @@
 #!/bin/bash
 
 set -ex 
-python stats.py -sc
+./env/bin/python stats.py -sc

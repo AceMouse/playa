@@ -1,4 +1,4 @@
 #!/bin/bash
 
 set -ex
-./bin/python synth.py
+./env/bin/python synth.py

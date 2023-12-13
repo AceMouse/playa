@@ -1,4 +1,4 @@
 #!/bin/bash
 
 set -ex 
-./bin/python player.py
+./env/bin/python player.py

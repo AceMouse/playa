@@ -1,4 +1,4 @@
 #!/bin/bash
 
 set -ex 
-python edit.py
+./env/bin/python edit.py

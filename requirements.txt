@@ -1,0 +1,6 @@
+pytimedinput
+clean-text
+keyboard
+regex
+selenium
+TTS
