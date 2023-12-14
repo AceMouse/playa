@@ -23,7 +23,6 @@ COPY edit.py ./
 COPY player.py ./
 COPY stats.py ./
 COPY synth.py ./
-COPY output ./output/
 #RUN python3 -m venv env 
 RUN pip3 install --upgrade pip
 RUN pip3 install -r requirements.txt 
