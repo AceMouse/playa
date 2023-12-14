@@ -52,7 +52,7 @@ def run(cmd):
 
 
 def tts(text, cuda, fp, model):
-    return run(["./env/bin/tts", "--text", text, "--use_cuda",str(cuda),"--model_name", model,"--out_path",fp])
+    return run(["tts", "--text", text, "--use_cuda",str(cuda),"--model_name", model,"--out_path",fp])
 
 def espeak(text, fp): 
     return run(["espeak", text, "-w",fp]) 

@@ -1,4 +1,4 @@
 #!/bin/bash
 set -xe
-python -m venv ./env 
-./env/bin/pip install -r requirements.txt
+sudo docker-compose up --build 
+sudo docker run --rm -it -p 5003:5003 --gpus all --entrypoint /bin/bash playa-playa

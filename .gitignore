@@ -1,2 +1,7 @@
-env 
 output
+src 
+nvidia-*
+.gitignore
+lib*
+pkg
+PKGBUILD
