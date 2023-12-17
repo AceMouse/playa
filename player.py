@@ -20,7 +20,7 @@ def popen(cmd):
     return subprocess.Popen(**d)
 
 def run(cmd):
-    d = {'args': cmd,'capture_output':True} if debug else {'args': cmd,'capture_output':True}
+    d = {'args': cmd,'capture_output':True} 
     return subprocess.run(**d)
 
 from multiprocessing import Process 
@@ -188,8 +188,8 @@ def play():
         if play_ch(folder, speed, book) == 1:
             folder, speed, book = get_input()
 
-LINE_UP = '\033[1A'
-LINE_CLEAR = '\x1b[2K'
+LINE_UP = '' if debug else '\033[1A' 
+LINE_CLEAR = '' if debug else '\x1b[2K'
 ARROW_PRECURSOR_1 = '\033'
 ARROW_PRECURSOR_2 = '['
 KEY_UP    = 'A'
