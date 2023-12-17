@@ -6,3 +6,4 @@ nvidia-*
 lib*
 pkg
 PKGBUILD
+*_alias

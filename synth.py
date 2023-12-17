@@ -39,6 +39,14 @@ def print_models():
             _print(x)
 
 debug = False
+profile = {x:{'success_time':0, 'success_words':0, 'fault_time':0, 'fault_words':0, 'faults':[]} for x in ["gpu", "cpu", "espeak"]}
+show_profiling = True 
+prog_aliases = {"tts":"tts", "espeak":"espeak", "ffmpeg":"ffmpeg", "ffplay":"ffplay", "ffprobe":"ffprobe"}
+for k in prog_aliases.keys():
+    alias = f".{k}_alias"
+    if os.path.isfile(alias):
+        with open(alias, "r") as a:
+            prog_aliases[k] = a.read().strip()
 
 def run(cmd):
     d = {'args': cmd} if debug else {'args': cmd,'stdout':subprocess.DEVNULL,'stderr':subprocess.DEVNULL}
@@ -50,12 +58,45 @@ def run(cmd):
         except TypeError:
             time.sleep(2)
 
+def show_profile():
+    if show_profiling:
+        for v in profile.values():
+            print(LINE_UP, end=LINE_CLEAR)
+            for _ in v:
+                print(LINE_UP, end=LINE_CLEAR)
+        for k,v in profile.items():
+            s = v["success_time"]+v["fault_time"]
+            wps = v["success_words"]/s if s != 0 else 0 
+            print(f'{k}: {wps:.2f} wps')
+            for k, v in v.items():
+                print(f"\t{k}: {v}")
+
 
 def tts(text, cuda, fp, model):
-    return run(["tts", "--text", text, "--use_cuda",str(cuda),"--model_name", model,"--out_path",fp])
+    t = time.time()
+    res = run([prog_aliases["tts"], "--text", text, "--use_cuda",str(cuda),"--model_name", model,"--out_path",fp])
+    t = time.time()-t 
+    pkey = "gpu" if cuda else "cpu"
+    ppref = "success" if res == 0 else "fault"
+    profile[pkey][f"{ppref}_time"] += t 
+    profile[pkey][f"{ppref}_words"] += text.count(' ') +1 
+    if res != 0:
+        profile[pkey][faults] += [(text,res)]
+    show_profile()
+    return res  
 
 def espeak(text, fp): 
-    return run(["espeak", text, "-w",fp]) 
+    t = time.time()
+    res = run([prog_aliases["espeak"], text, "-w",fp]) 
+    t = time.time()-t 
+    pkey = "espeak"
+    ppref = "success" if res == 0 else "fault"
+    profile[pkey][f"{ppref}_time"] += t 
+    profile[pkey][f"{ppref}_words"] += text.count(' ') +1 
+    if res != 0:
+        profile[pkey][faults] += [(text,res)]
+    show_profile()
+    return res  
 
 
 def synth(blocks,model,folder,pref="b",split=True):
@@ -94,10 +135,10 @@ def synth(blocks,model,folder,pref="b",split=True):
     return fps 
 
 def concat(merge_fp, wav_fp):
-    return run(["ffmpeg", "-f", "concat","-safe","0","-y", "-i", merge_fp, wav_fp])
+    return run([prog_aliases["ffmpeg"], "-f", "concat","-safe","0","-y", "-i", merge_fp, wav_fp])
 
 def to_mp3(wav_fp,out,highpass=200, lowpass=3000, debug=False):
-    return run(["ffmpeg","-y", "-i", wav_fp, "-acodec", "mp3","-filter:a", f"highpass=f={highpass}, lowpass=f={lowpass}", out])
+    return run([prog_aliases["ffmpeg"],"-y", "-i", wav_fp, "-acodec", "mp3","-filter:a", f"highpass=f={highpass}, lowpass=f={lowpass}", out])
 
 def merge(folder,dest,fps):
     _print(f"merging: {folder}")
@@ -276,4 +317,6 @@ def novel_full_clean(text):
 import shutil
 def rm_content(folder):
     shutil.rmtree(folder)
+LINE_UP = '' if debug else '\033[1A' 
+LINE_CLEAR = '' if debug else '\x1b[2K'
 main()
