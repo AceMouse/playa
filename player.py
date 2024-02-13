@@ -142,12 +142,20 @@ def play_ch(folder,speed,book):
     player_p.wait()
     p.terminate()
     with open(f"{working}/t.txt","w") as tf:
-        tf.write(str(0))
+        tf.write("0")
     with open(f"{working}/pch.txt","w") as chf:
         chf.write(str(ch+1))
     return 0 
 
 def get_input():
+    dbfp = "output/.def_book"
+    dsfp = "output/.def_speed"
+    if not os.path.isfile(dbfp):
+        with open(dbfp, "w") as dbf:
+            dbf.write("0")
+    if not os.path.isfile(dsfp):
+        with open(dsfp, "w") as dsf:
+            dsf.write("1")
     book = "" 
     clear()
     if len(sys.argv) <= 1:
@@ -157,23 +165,42 @@ def get_input():
             if not os.path.isdir(dir_fp):
                 continue
             books += [dir] 
-        print(f"chose a book (1-{len(books)}):")
+
+        default_book = 0  
+        with open(dbfp, "r") as dbf:
+            default_book = int(dbf.read())
+        book = books[default_book]
+        print(f"Choose a book (1-{len(books)}):")
         for i,b in enumerate(books):
-            print(f"  {i+1} {b}")
+            if i == default_book:
+                print(f"->{i+1} {b}")
+            else: 
+                print(f"  {i+1} {b}")
         i = input()
         if i == 't':
             quit(0)
-        book = books[int(i)-1]
+
+        if i.isdigit():
+            with open(dbfp, "w") as dbf:
+                dbf.write(str(int(i)-1))
+            book = books[int(i)-1]
         clear()
     else:
         book = sys.argv[1]
 
     folder = f"output/{book}"
-    i = input("choose a speed:\n")
+    default_speed = 1   
+    with open(dsfp, "r") as dsf:
+        default_speed = float(dsf.read())
+    speed = default_speed
+    i = input(f"Choose a speed ({default_speed}):\n")
     clear()
     if i == 't':
         quit(0)
-    speed = float(i)
+    if i.replace('.','',1).isdigit(): 
+        speed = float(i)
+        with open(dsfp, "w") as dsf:
+            dsf.write(str(speed))
 
     if len(sys.argv) > 2:
         with open(f"{folder}/.working/pch.txt","w") as chf:
