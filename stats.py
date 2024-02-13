@@ -11,8 +11,9 @@ def get_chapters_left():
             sch = int(schf.read())
             with open(f"{dir_fp}/pch.txt","r") as pchf:
                 pch = int(pchf.read())
-                ret += [(sch-pch,dir)]
+                ret += [(sch-pch+1,dir)]
     return ret 
+
 def get_current_time():
     ret = []
     for dir in os.listdir("output"):
@@ -20,7 +21,7 @@ def get_current_time():
         if not os.path.isdir(dir_fp):
             continue
         with open(f"{dir_fp}/t.txt","r") as tf:
-            t = int(tf.read())
+            t = float(tf.read())
             with open(f"{dir_fp}/pch.txt","r") as pchf:
                 pch = int(pchf.read())
                 ret += [(pch,t,dir)]
@@ -35,4 +36,5 @@ def main():
         print("Current chapter and time:")
         for c,t,dir in get_current_time():
             print(f"  {dir}: ch {c} t {t}")
-main()
+if __name__ == "__main__":
+    main()

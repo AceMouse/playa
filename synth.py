@@ -3,7 +3,7 @@ from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
-
+from stats import get_chapters_left
 import torch
 import subprocess
 import time 
@@ -37,7 +37,7 @@ def print_models():
     for x in TTS().list_models():
         if 'en' in x:
             _print(x)
-
+syn = True 
 debug = False
 profile = {x:{'success_time':0, 'success_words':0, 'fault_time':0, 'fault_words':0, 'faults':[]} for x in ["gpu", "cpu", "espeak"]}
 show_profiling = True 
@@ -60,10 +60,7 @@ def run(cmd):
 
 def show_profile():
     if show_profiling:
-        for v in profile.values():
-            print(LINE_UP, end=LINE_CLEAR)
-            for _ in v:
-                print(LINE_UP, end=LINE_CLEAR)
+        clear_after_line(line=3+lines_offset)
         for k,v in profile.items():
             s = v["success_time"]+v["fault_time"]
             wps = v["success_words"]/s if s != 0 else 0 
@@ -81,7 +78,7 @@ def tts(text, cuda, fp, model):
     profile[pkey][f"{ppref}_time"] += t 
     profile[pkey][f"{ppref}_words"] += text.count(' ') +1 
     if res != 0:
-        profile[pkey][faults] += [(text,res)]
+        profile[pkey]["faults"] += [(text,res)]
     show_profile()
     return res  
 
@@ -94,7 +91,7 @@ def espeak(text, fp):
     profile[pkey][f"{ppref}_time"] += t 
     profile[pkey][f"{ppref}_words"] += text.count(' ') +1 
     if res != 0:
-        profile[pkey][faults] += [(text,res)]
+        profile[pkey]["faults"] += [(text,res)]
     show_profile()
     return res  
 
@@ -106,6 +103,8 @@ def synth(blocks,model,folder,pref="b",split=True):
        _print(f"made folder {folder}")
     cuda = torch.cuda.is_available()
     for b,block in enumerate(blocks):
+        clear_line(line=2+lines_offset)
+        print(f"{b:02}/{len(blocks)}")
         fp = f"{folder}/{pref}{b:04}.wav"
         if (os.path.isfile(fp)):
             fps += [fp]
@@ -192,13 +191,19 @@ def get_dest():
                     m = sch-pch 
                     md = dir 
     if m == 100000:
-        print("nothing to synth")
+        clear_after_line(line=1+lines_offset)
+        print("Nothing to synth")
+        print("Chapters ready for reading:")
+        for c,dir in get_chapters_left():
+            print(f"  {dir}: {c}")
         exit(0)
     return md
     
 
 
 def main():
+    global lines_offset
+    clear_after_line()
     firefox_options = Options()
     firefox_options.add_argument('--headless')
     driver = webdriver.Firefox(options=firefox_options)
@@ -224,9 +229,11 @@ def main():
                 urlf.write(str(sys.argv[2]))
             with open(sch_fp,"w") as schf:
                 schf.write(str(sys.argv[3]))
-        for i in range(100):
+        while True:
             if new_cnt > 2: 
+                clear_line(line=1+lines_offset)
                 print(f"No more accessable chapters {dest}")
+                lines_offset+=1 
                 new_cnt = 0 
                 exhausted.add(dest)
             new_dest = get_dest()
@@ -258,15 +265,17 @@ def main():
                 if 'novelfull' in url:
                     text = novel_full_clean(text)
                 text = clean_text(text)
-                _print(text)
                 text = f"chapter {ch}\n{text}"
-                sentances = text.split('\n')
-                blocks = ["\n".join(sentances[i:i+2]) for i in range(0, len(sentances), 2)]
-                model = tts_models[0]
-                print(f"synthing: {dest}/{ch}")
-                fps = synth(blocks,model,ch_dir,pref=f"{ch:04}b")
-                merge(ch_dir, mp3_fp, fps)
-                rm_content(ch_dir)
+                _print(text)
+                if syn:
+                    sentances = text.split('\n')
+                    blocks = ["\n".join(sentances[i:i+2]) for i in range(0, len(sentances), 2)]
+                    model = tts_models[0]
+                    clear_line(line=1+lines_offset)
+                    print(f"synthing: {dest}/{ch}")
+                    fps = synth(blocks,model,ch_dir,pref=f"{ch:04}b")
+                    merge(ch_dir, mp3_fp, fps)
+                    rm_content(ch_dir)
                 new_cnt = 0 
             elif not new:
                 new_cnt += 1
@@ -285,8 +294,14 @@ def main():
         driver.quit()
 
 def clean_text(text):
-    text = clean(text,lower=False)
-    text = re.sub(r'''(?i)\b((?:https?://|www\d{0,3}[.]|[a-z0-9.\-]+[.][a-z]{2,4}/)(?:[^\s()<>]+|\(([^\s()<>]+|(\([^\s()<>]+\)))*\))+(?:\(([^\s()<>]+|(\([^\s()<>]+\)))*\)|[^\s`!()\[\]{};:'".,<>?«»“”‘’]))''', " ", text)
+    text = clean(text, lower=False, no_urls=True, replace_with_url="")
+    text = expand_contractions(remove_emoji(uncensor_text(misc_clean(text))))
+    text = re.sub('If you find any errors \( Ads popup, ads redirect, broken links, non-standard content, etc\. \), Please let us know < report chapter > so we can fix it as soon as possible\.', '', text, flags= re.MULTILINE|re.IGNORECASE)
+    return text
+def misc_clean(text):
+    text = re.sub("'", '', text) #remove 's for now, figure contractions out. 
+    text = re.sub('"', '', text)  
+#    text = re.sub('\\n', '', text)  
     text = re.sub('\.\.+', '.', text)
     text = re.sub('\[|\]', '', text)
     text = re.sub('([a-zA-Z])([0-9])', r'\1 \2', text, flags=re.MULTILINE)
@@ -296,7 +311,7 @@ def clean_text(text):
     text = re.sub('([\W_ ])e?xp([\W_ ])', r'\1experience\2', text, flags=re.IGNORECASE)
     text = re.sub('(->)|(~)', ' to ', text)
     text = re.sub(' +', ' ', text)
-    return uncensor_text(text) 
+    return text 
 
 def uncensor_text(text):
     text = re.sub('(m|M) ?\* ?th ?\* ?rf ?\* ?ck ?\* ?r', r'\1otherfucker', text)
@@ -308,6 +323,13 @@ def uncensor_text(text):
     text = re.sub('(b|B) ?\* ?llsh ?\* ?t', r'\1ullshit', text)
     return text 
 
+import emoji 
+def remove_emoji(text):
+    return emoji.replace_emoji(text, replace='')
+
+#from pycontractions import Contractions
+def expand_contractions(text):
+    return text
 
 def novel_full_clean(text):
     text = re.sub('= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =(.|\n)*', '', text)
@@ -317,6 +339,18 @@ def novel_full_clean(text):
 import shutil
 def rm_content(folder):
     shutil.rmtree(folder)
+
+def clear_line(line=1):
+    if not debug: 
+        print(f"\033[{line};1H\033[0K", end="", flush=True)
+    
+def clear_after_line(line=1):
+    if not debug: 
+        print(f"\033[{line};1H\033[0J", end="", flush=True)
 LINE_UP = '' if debug else '\033[1A' 
 LINE_CLEAR = '' if debug else '\x1b[2K'
+lines_offset=0
 main()
+
+
+

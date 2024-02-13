@@ -7,3 +7,13 @@ lib*
 pkg
 PKGBUILD
 *_alias
+__pycache__/*
+os
+play.sh
+re
+string
+subprocess
+synth.sh
+sys
+time
+tts_models/

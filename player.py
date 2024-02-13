@@ -40,25 +40,27 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
-def format_time(sec):
-    hr = int(sec/(60*60))
-    min = int((sec-hr*60*60)/60)
-    sec = sec%60
-    return f"{hr:02}:{min:02}:{sec:02}"
+def format_time(in_sec):
+    hr = int(in_sec/(60*60))
+    min = int((in_sec-hr*60*60)/60)
+    sec = int(in_sec%60)
+    msec = int((in_sec*1000)%1000)
+    return f"{hr:02}:{min:02}:{sec:02}:{msec:03}"
 
 def update_t(folder,speed,dur):
     t = 0
     len = 20
+    dt = 1/speed 
     while True:
         with open(f"{folder}/t.txt","r") as tf:
-            t = int(tf.read())
+            t = float(tf.read())
         with open(f"{folder}/t.txt","w") as tf:
-            tf.write(str(t+speed))
+            tf.write(str(t+speed*dt))
         fill = int((t*len)/dur)
         empty = 20-fill 
-        print(LINE_UP, end=LINE_CLEAR)
+        clear(lines=2)
         print(f"{format_time(t)} [{'#'*fill}{'.'*empty}] {format_time(dur)}")
-        time.sleep(1)
+        time.sleep(dt)
 
         
 def play_ch(folder,speed,book):
@@ -68,17 +70,15 @@ def play_ch(folder,speed,book):
     with open(f"{working}/pch.txt","r") as chf:
         ch = int(chf.read())
     with open(f"{working}/t.txt","r") as tf:
-        t = max(int(tf.read())-5,0)
+        t = max(float(tf.read())-5,0)
     with open(f"{working}/t.txt","w") as tf:
         tf.write(str(t))
     mp3_fp = f"{folder}/ch{ch:04}.mp3"
-    print(LINE_UP, end=LINE_CLEAR)
-    print(LINE_UP, end=LINE_CLEAR)
+    clear()
     print(f"playing {book} ch: {ch}\n")
     w = 1 
     while not os.path.isfile(mp3_fp):
-        print(LINE_UP, end=LINE_CLEAR)
-        print(LINE_UP, end=LINE_CLEAR)
+        clear()
         print(f"{mp3_fp} not found, retrying in 10s ({w})")
         w += 1
         x, timedOut = timedKey(timeout=10, allowCharacters=f"t")
@@ -86,7 +86,7 @@ def play_ch(folder,speed,book):
             continue
         if x == 't':
             return 1 
-    dur = int(run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", mp3_fp]).stdout.decode().split('.')[0])+1
+    dur = float(run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", mp3_fp]).stdout.decode().split('.')[0])+1
 
     p = Process(target=update_t, args=(working,speed,dur))
     p.start()
@@ -98,7 +98,7 @@ def play_ch(folder,speed,book):
                 with open(f"{working}/t.txt","r") as tf:
                     z = tf.read()
                     #print(f"\n\nt: '{z}'\n\n")
-                    t = int(z)
+                    t = float(z)
                     break
             except Exception as e:
                 print(e)
@@ -107,10 +107,12 @@ def play_ch(folder,speed,book):
         if dur-t <= 0:
             break
 
-        x, timedOut = timedKey(timeout=-1 if paused else int((dur-t)/speed), allowCharacters=f" pt{KEY_LEFT}{KEY_RIGHT}")
+        x, timedOut = timedKey(timeout=-1 if paused else int((dur-t)/speed), allowCharacters=f" pt{KEY_LEFT}{KEY_RIGHT}jk")
+        print()
+        print()
         if timedOut:
             break
-
+        clear(lines=3)
         if x in ' p':
             if paused:
                 os.kill(player_p.pid, signal.SIGCONT)
@@ -126,11 +128,11 @@ def play_ch(folder,speed,book):
             player_p.terminate()
             p.terminate()
             return 1 
-        if x in [KEY_LEFT,KEY_RIGHT]:
+        if x in [KEY_LEFT,KEY_RIGHT,"j","k"]:
             with open(f"{working}/t.txt","r") as tf:
-                t = int(tf.read())
+                t = float(tf.read())
             with open(f"{working}/t.txt","w") as tf:
-                t = max(t-15,0)if x == KEY_LEFT else min(t+15,dur)
+                t = max(t-15,0)if x in [KEY_LEFT,"j"] else min(t+15,dur)
                 tf.write(str(t))
             player_p.terminate()
             player_p = popen(["ffplay","-af",f"atempo={speed}", "-nodisp", "-autoexit", "-stats", "-ss", f"{t}s", mp3_fp])
@@ -147,6 +149,7 @@ def play_ch(folder,speed,book):
 
 def get_input():
     book = "" 
+    clear()
     if len(sys.argv) <= 1:
         books = []
         for dir in os.listdir("output"):
@@ -161,16 +164,16 @@ def get_input():
         if i == 't':
             quit(0)
         book = books[int(i)-1]
-        for _ in range(len(books)+2):
-            print(LINE_UP, end=LINE_CLEAR)
+        clear()
     else:
         book = sys.argv[1]
 
     folder = f"output/{book}"
     i = input("choose a speed:\n")
+    clear()
     if i == 't':
         quit(0)
-    speed = int(i)
+    speed = float(i)
 
     if len(sys.argv) > 2:
         with open(f"{folder}/.working/pch.txt","w") as chf:
@@ -184,9 +187,14 @@ def get_input():
 
 def play():
     folder, speed, book = get_input()
+    print()
     while True:
         if play_ch(folder, speed, book) == 1:
             folder, speed, book = get_input()
+
+def clear(lines=1):
+    if not debug: 
+        print(f"\033[{lines};1H\033[0J", end="")
 
 LINE_UP = '' if debug else '\033[1A' 
 LINE_CLEAR = '' if debug else '\x1b[2K'
