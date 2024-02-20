@@ -174,10 +174,15 @@ tts_models = [
 exhausted = set()
 def get_dest():
     if len(sys.argv) > 1:
-        return sys.argv[1]
+        dir = sys.argv[1]
+        if dir in exhausted or os.path.exists(f"output/{dir}/.complete"):
+            return []
+        return dir
     m = 100000 
     md = ""
     for dir in os.listdir("output"):
+        if os.path.exists(f"output/{dir}/.complete"):
+            continue
         dir_fp = f"output/{dir}/.working"
         if not os.path.isdir(dir_fp):
             continue
