@@ -38,9 +38,9 @@ def print_models():
         if 'en' in x:
             _print(x)
 syn = True 
-debug = False
+debug = False  
 profile = {x:{'success_time':0, 'success_words':0, 'fault_time':0, 'fault_words':0, 'faults':[]} for x in ["gpu", "cpu", "espeak"]}
-show_profiling = True 
+show_profiling = True
 prog_aliases = {"tts":"tts", "espeak":"espeak", "ffmpeg":"ffmpeg", "ffplay":"ffplay", "ffprobe":"ffprobe"}
 for k in prog_aliases.keys():
     alias = f".{k}_alias"
@@ -262,9 +262,11 @@ def main():
             mp3_fp = f"{folder}/ch{ch:04}.mp3"
             if new and not os.path.isfile(mp3_fp):
                 text = driver.find_element(By.CLASS_NAME,"moz-reader-content").text
+                text = clean_text(text)
                 if 'novelfull' in url:
                     text = novel_full_clean(text)
-                text = clean_text(text)
+                if 'libread' in url:
+                    text = libread_clean(text)
                 text = f"chapter {ch}\n{text}"
                 _print(text)
                 if syn:
@@ -283,6 +285,13 @@ def main():
             time.sleep(0.5)
             ActionChains(driver).key_down(Keys.ARROW_RIGHT).key_up(Keys.ARROW_RIGHT).perform()
             time.sleep(0.5)
+            if len(driver.current_url.split('/')) != len(url.split('/')):
+                clear_line(line=1+lines_offset)
+                print(f"No more accessable chapters {dest}")
+                lines_offset+=1 
+                new_cnt = 0 
+                exhausted.add(dest)
+                continue
             new = url != driver.current_url
             url = driver.current_url
             with open(url_fp,"w") as urlf:
@@ -331,11 +340,21 @@ def remove_emoji(text):
 def expand_contractions(text):
     return text
 
+def libread_clean(text):
+    lines = text.split('\n')
+    if 'libread' in lines[-1]: 
+        text = '\n'.join(lines[:-1])
+    return text
+
+
 def novel_full_clean(text):
     text = re.sub('= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =(.|\n)*', '', text)
     text = re.sub('If you find any errors ( Ads popup, ads redirect, broken links, non-standard content, etc.. ), Please let us know < report chapter > so we can fix it as soon as possible(.|\n)*', '', text)
     text = re.sub('Tip: You can use left, right, A and D keyboard keys to browse between chapters(.|\n)*', '', text, flags=re.MULTILINE)
     return text 
+
+
+
 import shutil
 def rm_content(folder):
     shutil.rmtree(folder)
