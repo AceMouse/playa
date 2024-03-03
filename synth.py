@@ -199,8 +199,10 @@ def get_dest():
         clear_after_line(line=1+lines_offset)
         print("Nothing to synth")
         print("Chapters ready for reading:")
-        for c,dir in get_chapters_left():
-            print(f"  {dir}: {c}")
+        x = get_chapters_left()
+        l = len(str(max(x, key=lambda item: item[0])[0]))
+        for c,_,_,dir in x:
+            print(f"  {c:>{l}}: {dir} ")
         exit(0)
     return md
     
