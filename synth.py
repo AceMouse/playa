@@ -20,7 +20,14 @@ def signal_handler(sig, frame):
         frame.f_locals['driver'].quit()
     elif 'driver' in frame.f_globals:
         frame.f_globals['driver'].quit()
-    sys.exit(0)
+    clear_after_line(line=2+lines_offset)
+    print("Interrupted")
+    print("Chapters ready for reading:")
+    x = get_chapters_left()
+    l = len(str(max(x, key=lambda item: item[0])[0]))
+    for c,_,_,dir in x:
+        print(f"  {c:>{l}}: {dir} ")
+    exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
 def _print(x):
@@ -265,6 +272,8 @@ def main():
             if not os.path.isfile(t_fp):
                 with open(t_fp, "w") as tf:
                     tf.write("0")
+            clear_line(line=1+lines_offset)
+            print(f"checking availability of: {dest}/{ch}")
             driver.get(f'about:reader?url={url}')
             time.sleep(2)
             mp3_fp = f"{folder}/ch{ch:04}.mp3"
