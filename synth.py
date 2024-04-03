@@ -38,7 +38,8 @@ def print_models():
         if 'en' in x:
             _print(x)
 syn = True 
-debug = False  
+debug = False 
+print_text = False 
 profile = {x:{'success_time':0, 'success_words':0, 'fault_time':0, 'fault_words':0, 'faults':[]} for x in ["gpu", "cpu", "espeak"]}
 show_profiling = True
 prog_aliases = {"tts":"tts", "espeak":"espeak", "ffmpeg":"ffmpeg", "ffplay":"ffplay", "ffprobe":"ffprobe"}
@@ -275,7 +276,8 @@ def main():
                 if 'libread' in url:
                     text = libread_clean(text)
                 text = f"chapter {ch}\n{text}"
-                _print(text)
+                if print_text:
+                    print(text)
                 if syn:
                     sentances = text.split('\n')
                     blocks = ["\n".join(sentances[i:i+2]) for i in range(0, len(sentances), 2)]
@@ -347,17 +349,22 @@ def remove_emoji(text):
 def expand_contractions(text):
     return text
 
+def remove_after(rtext,text):
+    return re.sub(rtext + r'(.|\n)*', '', text, flags=re.MULTILINE | re.IGNORECASE)
+
 def libread_clean(text):
     lines = text.split('\n')
     if 'libread' in lines[-1]: 
         text = '\n'.join(lines[:-1])
+    text = remove_after(r'Written( and Directed)? by Avans, Published( exclusively)? by W\.e\.b\.n\.o\.v\.e\.l', text)
+    text = remove_after(r'For discussion Join Avans Discord server', text)
     return text
 
 
 def novel_full_clean(text):
     text = re.sub('= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =(.|\n)*', '', text)
-    text = re.sub('If you find any errors ( Ads popup, ads redirect, broken links, non-standard content, etc.. ), Please let us know < report chapter > so we can fix it as soon as possible(.|\n)*', '', text)
-    text = re.sub('Tip: You can use left, right, A and D keyboard keys to browse between chapters(.|\n)*', '', text, flags=re.MULTILINE)
+    text = remove_after(r'If you find any errors ( Ads popup, ads redirect, broken links, non-standard content, etc.. ), Please let us know < report chapter > so we can fix it as soon as possible',text)
+    text = remove_after(r'Tip: You can use left, right, A and D keyboard keys to browse between chapters',text)
     return text 
 
 

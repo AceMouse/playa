@@ -166,13 +166,13 @@ def get_input():
                 continue
             books += [dir] 
 
-        default_book = 0  
+        default_book = ""
         with open(dbfp, "r") as dbf:
-            default_book = int(dbf.read())
-        book = books[default_book]
+            default_book = str(dbf.read())
+        book = default_book
         print(f"Choose a book (1-{len(books)}):")
         for i,b in enumerate(books):
-            if i == default_book:
+            if b == default_book:
                 print(f"->{i+1} {b}")
             else: 
                 print(f"  {i+1} {b}")
@@ -181,9 +181,9 @@ def get_input():
             quit(0)
 
         if i.isdigit():
-            with open(dbfp, "w") as dbf:
-                dbf.write(str(int(i)-1))
             book = books[int(i)-1]
+            with open(dbfp, "w") as dbf:
+                dbf.write(book)
         clear()
     else:
         book = sys.argv[1]
