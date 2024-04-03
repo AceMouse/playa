@@ -3,6 +3,7 @@ import time
 import os
 import sys 
 from pytimedinput import timedKey
+rate = 0.1
 
 def _print(x):
     for _ in range(3):
@@ -81,7 +82,7 @@ def play_ch(folder,speed,book):
         clear()
         print(f"{mp3_fp} not found, retrying in 10s ({w})")
         w += 1
-        x, timedOut = timedKey(timeout=10, allowCharacters=f"t")
+        x, timedOut = timedKey(timeout=10, allowCharacters=f"t", rate = rate)
         if timedOut:
             continue
         if x == 't':
@@ -107,7 +108,7 @@ def play_ch(folder,speed,book):
         if dur-t <= 0:
             break
 
-        x, timedOut = timedKey(timeout=-1 if paused else int((dur-t)/speed), allowCharacters=f" pt{KEY_LEFT}{KEY_RIGHT}jk")
+        x, timedOut = timedKey(timeout=-1 if paused else int((dur-t)/speed), allowCharacters=f" pt{KEY_LEFT}{KEY_RIGHT}jk",rate = rate)
         print()
         print()
         if timedOut:
@@ -211,8 +212,8 @@ def get_input():
         with open(f"{folder}/.working/t.txt","w") as tf:
             tf.write(sys.argv[3])
     return (folder,speed,book)
-
 def play():
+    os.nice(19)
     folder, speed, book = get_input()
     print()
     while True:
