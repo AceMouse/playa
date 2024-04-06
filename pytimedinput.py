@@ -34,6 +34,46 @@ def timedInput(prompt: str = "", timeout: int = 5, resetOnInput: bool = True, ma
         return "", False
     return __timedInput(prompt, timeout, resetOnInput, maxLength, allowCharacters, endCharacters, pollRate)
 
+def timedKeyOrNumber(prompt: str = "", timeout: int = 5, resetOnInput: bool = True, allowCharacters: str = "",allowNegative: bool = True, allowFloat: bool = True, pollRate: float = 0) -> Tuple[Union[str, int, float, None], bool]:
+    """Ask the user to press a single key out of an optional list of allowed ones or an integer or float value.
+
+    Args:
+        prompt (str, optional): The prompt to be displayed to the user. Defaults to "".
+        timeout (int, optional): How many seconds to wait for input. Defaults to 5, use -1 to wait forever.
+        resetOnInput (bool, optional): Reset the timeout-timer any time user presses a key. Defaults to True.
+        allowCharacters (str, optional): Which characters the user is allowed to enter. Defaults to "", ie. any character.
+        allowNegative (bool, optional): Whether to allow the user to enter a negative value or not.
+        allowFloat (bool, optional): Whether to allow the user to enter a floating point number.
+        pollRate (float, optional): How long to sleep between polls. Defaults to 0, use 0 to disable.
+
+    Returns:
+        Tuple[Union[str, int, float, None], bool]: Which key the user pressed or the value entered by the user, and whether the input timed out or not.
+    """
+    extraAllowedCharacters = set("0123456789".split())
+    if allowNegative:
+        extraAllowedCharacters.add("-")
+    if allowFloat:
+        extraAllowedCharacters.add(",")
+        extraAllowedCharacters.add(".")
+    for c in allowCharacters:
+        if c in extraAllowedCharacters:
+            extraAllowedCharacters.remove(c) 
+    extraAllowedCharactersFinal = "".join(extraAllowedCharacters)
+
+    x, timedOut = __timedInput(prompt, timeout, resetOnInput, maxLength=1, allowCharacters=allowCharacters + extraAllowedCharactersFinal, endCharacters="\x1b\n\r", inputType="single", pollRate = pollRate, newline = False)
+    if x == "":
+        return None, timedOut
+    if timedOut or x in allowCharacters: 
+        return x, timedOut
+    userInput, timedOut = __timedInput(
+        "", timeout, resetOnInput, allowCharacters="", inputType="float" if allowFloat else "integer", pollRate = pollRate, userInput = x)
+    try:
+        return float(userInput) if allowFloat else int(userInput), timedOut
+    except:
+        return None, timedOut
+
+
+
 
 def timedKey(prompt: str = "", timeout: int = 5, resetOnInput: bool = True, allowCharacters: str = "", pollRate: float = 0) -> Tuple[str, bool]:
     """Ask the user to press a single key out of an optional list of allowed ones.
@@ -92,7 +132,7 @@ def timedFloat(prompt: str = "", timeout: int = 5, resetOnInput: bool = True, al
     except:
         return None, timedOut
 
-def __timedInput(prompt: str = "", timeout: int = 5, resetOnInput: bool = True, maxLength: int = 0, allowCharacters: str = "", endCharacters: str = "\x1b\n\r", inputType: str = "text", pollRate: float = 0) -> Tuple[str, bool]:
+def __timedInput(prompt: str = "", timeout: int = 5, resetOnInput: bool = True, maxLength: int = 0, allowCharacters: str = "", endCharacters: str = "\x1b\n\r", inputType: str = "text", pollRate: float = 0, newline: bool = True, userInput: str = "") -> Tuple[str, bool]:
     def checkStdin():
         if(sys.platform == "win32"):
             return msvcrt.kbhit()
@@ -118,7 +158,6 @@ def __timedInput(prompt: str = "", timeout: int = 5, resetOnInput: bool = True, 
         if(inputType == "float"):
             allowCharacters += numbers + ".,"
 
-        userInput = ""
         timeStart = time.time()
         timedOut = False
         if(len(prompt) > 0):
@@ -157,7 +196,8 @@ def __timedInput(prompt: str = "", timeout: int = 5, resetOnInput: bool = True, 
                     timeStart = time.time()
             if(pollRate != 0):
                 time.sleep(pollRate)
-        print("")
+        if newline:
+            print("")
         __setStdoutSettings(__savedConsoleSettings)
         return userInput, timedOut
 

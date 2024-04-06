@@ -2,7 +2,7 @@ import subprocess
 import time 
 import os
 import sys 
-from pytimedinput import timedKey
+from pytimedinput import timedKey, timedKeyOrNumber
 pollRate = 0.1
 
 def _print(x):
@@ -14,7 +14,7 @@ def _print(x):
             continue
         break
 
-debug = True
+debug = False
 
 def popen(cmd):
     d = {'args': cmd} if debug else {'args': cmd,'stdout':subprocess.DEVNULL, 'stderr':subprocess.DEVNULL}
@@ -82,7 +82,7 @@ def play_ch(folder,speed,book):
         clear()
         print(f"{mp3_fp} not found, retrying in 10s ({w})")
         w += 1
-        x, timedOut = timedKey(timeout=10, allowCharacters=f"t", pollRate = pollRate)
+        x, timedOut = timedKey(timeout=10, resetOnInput = False, allowCharacters=f"t", pollRate = pollRate)
         if timedOut:
             continue
         if x == 't':
@@ -108,7 +108,7 @@ def play_ch(folder,speed,book):
         if dur-t <= 0:
             break
 
-        x, timedOut = timedKey(timeout=-1 if paused else int((dur-t)/speed), allowCharacters=f" pt{KEY_LEFT}{KEY_RIGHT}jk",pollRate = pollRate)
+        x, timedOut = timedKey(timeout=-1 if paused else int((dur-t)/speed), resetOnInput = False, allowCharacters=f" pt{KEY_LEFT}{KEY_RIGHT}jk",pollRate = pollRate)
         print()
         print()
         if timedOut:
@@ -177,14 +177,15 @@ def get_input():
                 print(f"->{i+1} {b}")
             else: 
                 print(f"  {i+1} {b}")
-        i = input()
+        i, _ = timedKeyOrNumber("", timeout = -1, allowCharacters = "t", allowNegative = False, allowFloat = False, pollRate = pollRate)
         if i == 't':
             quit(0)
-
-        if i.isdigit():
-            book = books[int(i)-1]
-            with open(dbfp, "w") as dbf:
-                dbf.write(book)
+        if i != None:
+            if i == 0 or i > len(books):
+                return get_input()
+            book = books[i-1]
+        with open(dbfp, "w") as dbf:
+            dbf.write(book)
         clear()
     else:
         book = sys.argv[1]
@@ -194,14 +195,14 @@ def get_input():
     with open(dsfp, "r") as dsf:
         default_speed = float(dsf.read())
     speed = default_speed
-    i = input(f"Choose a speed ({default_speed}):\n")
+    i, _ = timedKeyOrNumber(f"Choose a speed ({default_speed}):\n", timeout = -1, allowCharacters = "t", allowNegative = False, pollRate = pollRate)
     clear()
     if i == 't':
-        quit(0)
-    if i.replace('.','',1).isdigit(): 
-        speed = float(i)
-        with open(dsfp, "w") as dsf:
-            dsf.write(str(speed))
+        return get_input()
+    if i != None:
+        speed = i
+    with open(dsfp, "w") as dsf:
+        dsf.write(str(speed))
 
     if len(sys.argv) > 2:
         with open(f"{folder}/.working/pch.txt","w") as chf:
