@@ -108,7 +108,7 @@ def play_ch(folder,speed,book):
     ui_p = Process(target=update_t, args=(working,speed,dur))
     ui_p.start()
     player_p = start_mp3(mp3_fp, speed, t)
-    paused = False 
+    unpaused = True
     while True:
         with open(f"{working}/t.txt","r") as tf:
             z = tf.read()
@@ -119,16 +119,16 @@ def play_ch(folder,speed,book):
         if dur-t <= 0:
             break
 
-        x, timedOut = timedKey(timeout=-1 if paused else int((dur-t)/speed), resetOnInput = False, allowCharacters=f" pt{KEY_LEFT}{KEY_RIGHT}{KEY_UP}{KEY_DOWN}wsjk",pollRate = pollRate)
+        x, timedOut = timedKey(timeout=-1 if not unpaused else int((dur-t)/speed), resetOnInput = False, allowCharacters=f" pt{KEY_LEFT}{KEY_RIGHT}{KEY_UP}{KEY_DOWN}wsjk",pollRate = pollRate)
         if timedOut:
             break
         #print("\n")
         clear(lines=3)
         if x in ' p':
-            paused = not paused
-            pause([player_p, ui_p], unpause = paused)
+            unpaused = not unpaused
+            pause([player_p, ui_p], unpause = unpaused)
         if x == 't':
-            if paused:
+            if not unpaused:
                 unpause([player_p, ui_p])
             player_p.terminate()
             ui_p.terminate()
@@ -154,7 +154,7 @@ def play_ch(folder,speed,book):
             ui_p.terminate()
             ui_p = Process(target=update_t, args=(working,speed,dur))
             ui_p.start()
-            if paused:
+            if not unpaused:
                 pause([player_p])
         if x in f"{KEY_UP}{KEY_DOWN}ws":
             _print(f"key = {x}")
@@ -173,7 +173,7 @@ def play_ch(folder,speed,book):
             player_p = start_mp3(mp3_fp, speed, t)
             ui_p = Process(target=update_t, args=(working,speed,dur))
             ui_p.start()
-            if paused:
+            if not unpaused:
                 pause([player_p, ui_p])
 
     player_p.wait()
