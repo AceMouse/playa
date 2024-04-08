@@ -197,7 +197,7 @@ def get_dest():
             sch = int(schf.read())
         with open(f"{dir_fp}/tch.txt","r") as tchf:
             tch = int(tchf.read())
-            if tch-sch == 0:
+            if tch-sch == -1:
                 continue
         with open(f"{dir_fp}/pch.txt","r") as pchf:
             pch = int(pchf.read())
