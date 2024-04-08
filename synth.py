@@ -1,19 +1,14 @@
-from selenium import webdriver 
-from selenium.webdriver.firefox.options import Options 
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.common.by import By
 from stats import get_chapters_left
 import torch
 import subprocess
 import time 
 import os
 import sys 
-import string
-from cleantext import clean
-import re
-import urllib.parse
 import signal
+
+debug = False 
+print_text = False 
+show_profiling = True
 
 def signal_handler(sig, frame):
     if 'driver' in frame.f_locals:
@@ -44,11 +39,7 @@ def print_models():
     for x in TTS().list_models():
         if 'en' in x:
             _print(x)
-syn = True 
-debug = False 
-print_text = False 
 profile = {x:{'success_time':0, 'success_words':0, 'fault_time':0, 'fault_words':0, 'faults':[]} for x in ["gpu", "cpu", "espeak"]}
-show_profiling = True
 prog_aliases = {"tts":"tts", "espeak":"espeak", "ffmpeg":"ffmpeg", "ffplay":"ffplay", "ffprobe":"ffprobe"}
 for k in prog_aliases.keys():
     alias = f".{k}_alias"
@@ -110,9 +101,10 @@ def synth(blocks,model,folder,pref="b",split=True):
        os.makedirs(folder)
        _print(f"made folder {folder}")
     cuda = torch.cuda.is_available()
+    show_profile()
     for b,block in enumerate(blocks):
         clear_line(line=2+lines_offset)
-        print(f"{b:02}/{len(blocks)}")
+        print(f"{b:02}/{len(blocks)-1}")
         fp = f"{folder}/{pref}{b:04}.wav"
         if (os.path.isfile(fp)):
             fps += [fp]
@@ -147,15 +139,22 @@ def concat(merge_fp, wav_fp):
 def to_mp3(wav_fp,out,highpass=200, lowpass=3000, debug=False):
     return run([prog_aliases["ffmpeg"],"-y", "-i", wav_fp, "-acodec", "mp3","-filter:a", f"highpass=f={highpass}, lowpass=f={lowpass}", out])
 
-def merge(folder,dest,fps):
-    _print(f"merging: {folder}")
-    merge_order=""
-    for fp in fps:
-        merge_order += f"file '{fp.split('/')[-1]}'\n"
-    merge_fp = f"{folder}/merge_order.txt"
-    with open(merge_fp,"w") as f:
-        f.write(merge_order)
-    wav_fp = f"{folder}/merged.wav"
+def get_duration(wav_fp):
+    cmd = [prog_aliases["ffprobe"], "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", wav_fp]
+    d = {'args': cmd,'capture_output':True} 
+    return float(subprocess.run(**d).stdout.decode().split('.')[0])+1
+
+def merge(working,dest,fps, ch):
+    ch_fp = f"{working}/ch"
+    _print(f"merging: {ch_fp}")
+    merge_fp = f"{ch_fp}/merge_order.txt"
+    with open(f"{working}/txt/ch{ch:04}/timestamps.txt", "w") as ts:
+        with open(merge_fp,"w") as f:
+            for fp in fps:
+                dur = get_duration(fp)
+                ts.write(f"{dur}\n")
+                f.write(f"file '{fp.split('/')[-1]}'\n")
+    wav_fp = f"{ch_fp}/merged.wav"
     concat(merge_fp, wav_fp)
     to_mp3(wav_fp,dest)
 
@@ -179,7 +178,6 @@ tts_models = [
     "tts_models/en/blizzard2013/capacitron-t2-c150_v2",
     "tts_models/en/multi-dataset/tortoise-v2"
 ]
-exhausted = set()
 def get_dest():
     if len(sys.argv) > 1:
         dir = sys.argv[1]
@@ -194,15 +192,18 @@ def get_dest():
         dir_fp = f"output/{dir}/.working"
         if not os.path.isdir(dir_fp):
             continue
-        if dir in exhausted:
-            continue
+        sch = 0 
         with open(f"{dir_fp}/sch.txt","r") as schf:
             sch = int(schf.read())
-            with open(f"{dir_fp}/pch.txt","r") as pchf:
-                pch = int(pchf.read())
-                if sch-pch<m:
-                    m = sch-pch 
-                    md = dir 
+        with open(f"{dir_fp}/tch.txt","r") as tchf:
+            tch = int(tchf.read())
+            if tch-sch == 0:
+                continue
+        with open(f"{dir_fp}/pch.txt","r") as pchf:
+            pch = int(pchf.read())
+            if sch-pch<m:
+                m = sch-pch 
+                md = dir 
     if m == 100000:
         clear_after_line(line=1+lines_offset)
         print("Nothing to synth")
@@ -214,17 +215,47 @@ def get_dest():
         exit(0)
     return md
     
-
+def get_blocks(dest, ch):
+    ch_fp = f"output/{dest}/.working/txt/ch{ch:04}"
+    print(ch_fp)
+    if not os.path.isdir(ch_fp):
+        print("no blocks")
+        return []
+    blocks = []
+    dirs = os.listdir(ch_fp)
+    dirs = sorted(dirs)
+    print(dirs)
+    for dir in dirs:
+        with open(f"{ch_fp}/{dir}", "r") as b:
+            blocks += [str(b.read())]
+    print("blocks: ")
+    [print(b) for b in blocks]
+    return blocks
 
 def main():
     global lines_offset
     clear_after_line()
-    firefox_options = Options()
-    firefox_options.add_argument('--headless')
-    driver = webdriver.Firefox(options=firefox_options)
-    try:
-        new = True
-        new_cnt = 0
+    dest = get_dest()
+    folder = f"output/{dest}"
+    working = f"{folder}/.working"
+    ch_dir = f"{working}/ch"
+    url_fp = f"{working}/url.txt"
+    sch_fp = f"{working}/sch.txt"
+    pch_fp = f"{working}/pch.txt"
+    t_fp   = f"{working}/t.txt"
+    if not os.path.isdir(folder):
+       os.makedirs(folder)
+    if not os.path.isdir(working):
+       os.makedirs(working)
+    if not os.path.isdir(ch_dir):
+       os.makedirs(ch_dir)
+    if len(sys.argv)>2:
+        with open(url_fp,"w") as urlf:
+            urlf.write(str(sys.argv[2]))
+        with open(sch_fp,"w") as schf:
+            schf.write(str(sys.argv[3]))
+    ch = 0 
+    while True:
         dest = get_dest()
         folder = f"output/{dest}"
         working = f"{folder}/.working"
@@ -233,150 +264,32 @@ def main():
         sch_fp = f"{working}/sch.txt"
         pch_fp = f"{working}/pch.txt"
         t_fp   = f"{working}/t.txt"
-        if not os.path.isdir(folder):
-           os.makedirs(folder)
-        if not os.path.isdir(working):
-           os.makedirs(working)
-        if not os.path.isdir(ch_dir):
-           os.makedirs(ch_dir)
-        if len(sys.argv)>2:
-            with open(url_fp,"w") as urlf:
-                urlf.write(str(sys.argv[2]))
-            with open(sch_fp,"w") as schf:
-                schf.write(str(sys.argv[3]))
-        while True:
-            if new_cnt > 2: 
-                clear_line(line=1+lines_offset)
-                print(f"No more accessable chapters {dest}")
-                lines_offset+=1 
-                new_cnt = 0 
-                exhausted.add(dest)
-            new_dest = get_dest()
-            if new_dest != dest:
-                new = True 
-            dest = new_dest
-            folder = f"output/{dest}"
-            working = f"{folder}/.working"
-            ch_dir = f"{working}/ch"
-            url_fp = f"{working}/url.txt"
-            sch_fp = f"{working}/sch.txt"
-            pch_fp = f"{working}/pch.txt"
-            t_fp   = f"{working}/t.txt"
-            with open(url_fp,"r") as urlf:
-                url = urlf.read()
-            with open(sch_fp,"r") as chf:
-                ch = int(chf.read())
-            if not os.path.isfile(pch_fp):
-                with open(pch_fp, "w") as pchf:
-                    pchf.write(str(ch))
-            if not os.path.isfile(t_fp):
-                with open(t_fp, "w") as tf:
-                    tf.write("0")
-            clear_line(line=1+lines_offset)
-            print(f"checking availability of: {dest}/{ch}")
-            driver.get(f'about:reader?url={url}')
-            time.sleep(2)
-            mp3_fp = f"{folder}/ch{ch:04}.mp3"
-            if new and not os.path.isfile(mp3_fp):
-                text = driver.find_element(By.CLASS_NAME,"moz-reader-content").text
-                text = clean_text(text)
-                if 'novelfull' in url:
-                    text = novel_full_clean(text)
-                if 'libread' in url:
-                    text = libread_clean(text)
-                text = f"chapter {ch}\n{text}"
-                if print_text:
-                    print(text)
-                if syn:
-                    sentances = text.split('\n')
-                    blocks = ["\n".join(sentances[i:i+2]) for i in range(0, len(sentances), 2)]
-                    model = tts_models[0]
-                    clear_line(line=1+lines_offset)
-                    print(f"synthing: {dest}/{ch}")
-                    fps = synth(blocks,model,ch_dir,pref=f"{ch:04}b")
-                    merge(ch_dir, mp3_fp, fps)
-                    rm_content(ch_dir)
-                new_cnt = 0 
-            elif not new:
-                new_cnt += 1
-            driver.get(url)
-            time.sleep(0.5)
-            ActionChains(driver).key_down(Keys.ARROW_RIGHT).key_up(Keys.ARROW_RIGHT).perform()
-            time.sleep(0.5)
-            if len(driver.current_url.split('/')) != len(url.split('/')):
-                clear_line(line=1+lines_offset)
-                print(f"No more accessable chapters {dest}")
-                lines_offset+=1 
-                new_cnt = 0 
-                exhausted.add(dest)
-                continue
-            new = url != driver.current_url
-            url = driver.current_url
-            with open(url_fp,"w") as urlf:
-                urlf.write(str(url))
-            if new:
-                with open(sch_fp,"w") as schf:
-                    schf.write(str(ch+1))
-    finally:
-        driver.quit()
+        txt_fp   = f"{working}/txt"
+        with open(url_fp,"r") as urlf:
+            url = urlf.read()
+        with open(sch_fp,"r") as chf:
+            ch = int(chf.read())
+        if not os.path.isfile(pch_fp):
+            with open(pch_fp, "w") as pchf:
+                pchf.write(str(ch))
+        if not os.path.isfile(t_fp):
+            with open(t_fp, "w") as tf:
+                tf.write("0")
+        mp3_fp = f"{folder}/ch{ch:04}.mp3"
+        if not os.path.isfile(mp3_fp):
+            blocks = get_blocks(dest, ch) 
+            model = tts_models[0]
+            clear_after_line(line=1+lines_offset)
+            print(f"synthing: {dest}/{ch}")
+            if len(blocks) < 2:
+                print("no blocks")
+                quit(0)
+            fps = synth(blocks,model,ch_dir,pref=f"{ch:04}b")
+            merge(working, mp3_fp, fps, ch)
+            rm_content(ch_dir)
 
-def clean_text(text):
-    text = clean(text, lower=False, no_urls=True, replace_with_url="")
-    text = expand_contractions(remove_emoji(uncensor_text(misc_clean(text))))
-    text = re.sub('If you find any errors \( Ads popup, ads redirect, broken links, non-standard content, etc\. \), Please let us know < report chapter > so we can fix it as soon as possible\.', '', text, flags= re.MULTILINE|re.IGNORECASE)
-    return text
-def misc_clean(text):
-    text = re.sub("'", '', text) #remove 's for now, figure contractions out. 
-    text = re.sub('"', '', text)  
-#    text = re.sub('\\n', '', text)  
-    text = re.sub('\.\.+', '.', text)
-    text = re.sub('\[|\]', '', text)
-    text = re.sub('([a-zA-Z])([0-9])', r'\1 \2', text, flags=re.MULTILINE)
-    text = re.sub('(\d+(\.\d+)?) */ *(\d+(\.\d+)?)', r'\1 out of \3', text)
-    text = re.sub('^[\W_]+$', '', text, flags=re.MULTILINE)
-    text = re.sub('([\W_ ])lv([\W_ ])', r'\1level\2', text, flags=re.IGNORECASE)
-    text = re.sub('([\W_ ])e?xp([\W_ ])', r'\1experience\2', text, flags=re.IGNORECASE)
-    text = re.sub('(->)|(~)', ' to ', text)
-    text = re.sub(' +', ' ', text)
-    return text 
-
-def uncensor_text(text):
-    text = re.sub('(m|M) ?\* ?th ?\* ?rf ?\* ?ck ?\* ?r', r'\1otherfucker', text)
-    text = re.sub('(b|B) ?\* ?itch', r'\1itch', text)
-    text = re.sub('(g|G) ?\* ?dd ?\* ?mn ?\* ?d', r'\1oddamned', text)
-    text = re.sub('(g|G) ?\* ?dd ?\* ?mm ?\* ?t', r'\1oddammit', text)
-    text = re.sub('(f|F) ?\* ?ck ?\* ?ng', r'\1ucking', text)
-    text = re.sub('(f|F) ?\* ?ck', r'\1uck', text)
-    text = re.sub('(b|B) ?\* ?llsh ?\* ?t', r'\1ullshit', text)
-    return text 
-
-import emoji 
-def remove_emoji(text):
-    return emoji.replace_emoji(text, replace='')
-
-#from pycontractions import Contractions
-def expand_contractions(text):
-    return text
-
-def remove_after(rtext,text):
-    return re.sub(rtext + r'(.|\n)*', '', text, flags=re.MULTILINE | re.IGNORECASE)
-
-def libread_clean(text):
-    lines = text.split('\n')
-    if 'libread' in lines[-1]: 
-        text = '\n'.join(lines[:-1])
-    text = remove_after(r'Written( and Directed)? by Avans, Published( exclusively)? by W\.e\.b\.n\.o\.v\.e\.l', text)
-    text = remove_after(r'For discussion Join Avans Discord server', text)
-    return text
-
-
-def novel_full_clean(text):
-    text = re.sub('= = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =(.|\n)*', '', text)
-    text = remove_after(r'If you find any errors ( Ads popup, ads redirect, broken links, non-standard content, etc.. ), Please let us know < report chapter > so we can fix it as soon as possible',text)
-    text = remove_after(r'Tip: You can use left, right, A and D keyboard keys to browse between chapters',text)
-    return text 
-
-
+        with open(sch_fp,"w") as schf:
+            schf.write(str(ch+1))
 
 import shutil
 def rm_content(folder):

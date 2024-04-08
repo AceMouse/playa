@@ -48,19 +48,35 @@ def format_time(in_sec):
     msec = int((in_sec*1000)%1000)
     return f"{hr:02}:{min:02}:{sec:02}:{msec:03}"
 
-def update_t(folder,speed,dur):
+def update_t(folder,speed,dur,ch):
     t = 0
-    len = 20
+    l = 20
     dt = 1/speed 
+    ts_fp = f"{folder}/txt/ch{ch:04}/timestamps.txt"
+    show_block = os.path.isfile(ts_fp)
+    block_times = [0]
+    if show_block:
+        with open(ts_fp, "r") as ts :
+            times = [float(d)-0.5 for d in ts.read().split("\n")[:-1]]
+            for d in times:
+                block_times += [block_times[-1] + d]
+            print(f"{dur}, {sum(times)}, {len(times)}")
+    block = 0 
     while True:
         with open(f"{folder}/t.txt","r") as tf:
             t = float(tf.read())
         with open(f"{folder}/t.txt","w") as tf:
             tf.write(str(t+speed*dt))
-        fill = int((t*len)/dur)
+
+        fill = int((t*l)/dur)
         empty = 20-fill 
         clear(lines=2)
         print(f"{format_time(t)} [{'#'*fill}{'.'*empty}] {format_time(dur)}")
+        if show_block:
+            while t > block_times[block+1]:
+                block += 1 
+            with open(f"{folder}/txt/ch{ch:04}/b{block:04}.txt", "r") as f:
+                print(str(f.read()))        
         time.sleep(dt)
 
 def get_fp(folder, ch):
@@ -105,7 +121,7 @@ def play_ch(folder,speed,book):
         if x == 't':
             return 1 
     dur = get_duration(mp3_fp) 
-    ui_p = Process(target=update_t, args=(working,speed,dur))
+    ui_p = Process(target=update_t, args=(working,speed,dur,ch))
     ui_p.start()
     player_p = start_mp3(mp3_fp, speed, t)
     unpaused = True
@@ -152,7 +168,7 @@ def play_ch(folder,speed,book):
             player_p.terminate()
             player_p = start_mp3(mp3_fp, speed, t)
             ui_p.terminate()
-            ui_p = Process(target=update_t, args=(working,speed,dur))
+            ui_p = Process(target=update_t, args=(working,speed,dur,ch))
             ui_p.start()
             if not unpaused:
                 pause([player_p])
@@ -171,7 +187,7 @@ def play_ch(folder,speed,book):
             clear()
             print(f"playing {book} ch: {ch} ({speed}x)\n")
             player_p = start_mp3(mp3_fp, speed, t)
-            ui_p = Process(target=update_t, args=(working,speed,dur))
+            ui_p = Process(target=update_t, args=(working,speed,dur,ch))
             ui_p.start()
             if not unpaused:
                 pause([player_p, ui_p])
