@@ -13,6 +13,7 @@ from multiprocessing import Pool
 
 print_text = False 
 debug = False
+print_progress = False
 def get_dests():
     dests = []
     for dir in os.listdir("output"):
@@ -24,8 +25,8 @@ def get_dests():
         dests += [dir]
     return dests
 
+
 def worker(dest):
-    print(dest)
     firefox_options = Options()
     firefox_options.add_argument('--headless')
     driver = webdriver.Firefox(options=firefox_options)
@@ -62,8 +63,8 @@ def worker(dest):
             if not os.path.isdir(ch_dir):
                os.makedirs(ch_dir)
 
-
-            print(f"getting: {dest}/{ch}", flush=True)
+            if print_progress:
+                print(f"getting: {dest}/{ch}", flush=True)
             driver.get(f'about:reader?url={url}')
             time.sleep(2)
             full_txt_fp = f"{txt_dir}/ch{ch:04}.txt"
@@ -100,7 +101,8 @@ def worker(dest):
                 ActionChains(driver).key_down(Keys.ARROW_RIGHT).key_up(Keys.ARROW_RIGHT).perform()
                 time.sleep(0.5)
                 if len(driver.current_url.split('/')) != len(url.split('/')):
-                    print(f"No more accessable chapter texts {dest}", flush=True)
+                    if print_progress:
+                            print(f"No more accessable chapter texts {dest}", flush=True)
                     done = True
                     break
                 new = url != driver.current_url
@@ -176,21 +178,6 @@ def novel_full_clean(text):
     text = remove_after(r'Tip: You can use left, right, A and D keyboard keys to browse between chapters',text)
     return text 
 
-
-
-import shutil
-def rm_content(folder):
-    shutil.rmtree(folder)
-
-def clear_line(line=1):
-    if not debug: 
-        print(f"\033[{line};1H\033[0K", end="", flush=True)
-    
-def clear_after_line(line=1):
-    if not debug: 
-        print(f"\033[{line};1H\033[0J", end="", flush=True)
-LINE_UP = '' if debug else '\033[1A' 
-LINE_CLEAR = '' if debug else '\x1b[2K'
 if __name__ == '__main__':
     dests = get_dests()
     for d in dests:
