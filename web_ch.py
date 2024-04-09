@@ -22,15 +22,33 @@ def get_dests():
         dir_fp = f"output/{dir}"
         if not os.path.isdir(dir_fp):
             continue
-        dests += [dir]
+
+        folder = f"output/{dir}"
+        working = f"{folder}/.working"
+        sch_fp = f"{working}/sch.txt"
+        tch_fp = f"{working}/tch.txt"
+        with open(tch_fp, "r") as chf:
+            with open(sch_fp, "r") as schf:
+                dests += [(dir,int(schf.read())-int(chf.read()))]
+    dests = [x for x,_ in sorted(dests, key = lambda x:x[1], reverse = True)]
     return dests
 
-
+uas = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.3",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3.1 Safari/605.1.1",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_12_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/103.0.0.0 Safari/537.3",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.3",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.1"
+        ]
+import random
 def worker(dest):
     firefox_options = Options()
+    my_user_agent = uas[random.randint(0, len(uas)-1)]
+    firefox_options.add_argument(f"--user-agent={my_user_agent}")
+
     firefox_options.add_argument('--headless')
     driver = webdriver.Firefox(options=firefox_options)
-
     try:
         folder = f"output/{dest}"
         working = f"{folder}/.working"
@@ -69,6 +87,9 @@ def worker(dest):
             time.sleep(2)
             full_txt_fp = f"{txt_dir}/ch{ch:04}.txt"
             text = driver.find_element(By.CLASS_NAME,"moz-reader-content").text
+            if len(text) < 100:
+                print(f"could not fetch\n text: {text}")
+                quit(0)
             with open(full_txt_fp,"w") as f:
                 f.write(text)
 
@@ -78,13 +99,13 @@ def worker(dest):
             if 'libread' in url:
                 text = libread_clean(text)
 
-
             sentances = text.split('\n')
             if not re.search('chapter', sentances[0], re.IGNORECASE):
                 sentances = [f"chapter {ch}"] + sentances
 
             blocks = ["\n".join(sentances[i:i+2]) for i in range(0, len(sentances), 2)]
             text = "\n".join(blocks)
+            
 
             if print_text:
                 print(text, flush=True)
@@ -184,6 +205,5 @@ def novel_full_clean(text):
 if __name__ == '__main__':
     dests = get_dests()
     for d in dests:
+        time.sleep(10)
         worker(d)
-    #with Pool(len(dests)) as p:
-    #    p.map(worker, dests)
