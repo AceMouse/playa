@@ -57,7 +57,7 @@ def update_t(folder,speed,dur,ch):
     block_times = [0]
     if show_block:
         with open(ts_fp, "r") as ts :
-            times = [float(d)-0.5 for d in ts.read().split("\n")[:-1]]
+            times = [float(d) for d in ts.read().split("\n")[:-1]]
             for d in times:
                 block_times += [block_times[-1] + d]
             print(f"{dur}, {sum(times)}, {len(times)}")
@@ -83,7 +83,7 @@ def get_fp(folder, ch):
     return f"{folder}/ch{ch:04}.mp3"
 
 def get_duration(mp3_fp):
-    return float(run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", mp3_fp]).stdout.decode().split('.')[0])+1
+    return float(run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", mp3_fp]).stdout.decode())
 
 def start_mp3(mp3_fp, speed, t):
     return popen(["ffplay","-af",f"atempo={speed}", "-nodisp", "-autoexit", "-stats", "-ss", f"{t}s", mp3_fp])
@@ -135,7 +135,7 @@ def play_ch(folder,speed,book):
         if dur-t <= 0:
             break
 
-        x, timedOut = timedKey(timeout=-1 if not unpaused else int((dur-t)/speed), resetOnInput = False, allowCharacters=f" pt{KEY_LEFT}{KEY_RIGHT}{KEY_UP}{KEY_DOWN}wsjk",pollRate = pollRate)
+        x, timedOut = timedKey(timeout=-1 if not unpaused else (dur-t)/speed, resetOnInput = False, allowCharacters=f" pt{KEY_LEFT}{KEY_RIGHT}{KEY_UP}{KEY_DOWN}wsjk",pollRate = pollRate)
         if timedOut:
             break
         #print("\n")
@@ -150,11 +150,13 @@ def play_ch(folder,speed,book):
             ui_p.terminate()
             return 1 
         if x in f"{KEY_LEFT}{KEY_RIGHT}jk":
+            player_p.terminate()
+            ui_p.terminate()
             with open(f"{working}/t.txt","r") as tf:
                 t = float(tf.read())
             with open(f"{working}/t.txt","w") as tf:
                 if x in f"{KEY_LEFT}j": 
-                    if t < 2 and os.path.isfile(get_fp(folder, ch-1)):
+                    if t < 5 and os.path.isfile(get_fp(folder, ch-1)):
                         ch -= 1
                         mp3_fp = get_fp(folder, ch)
                         dur = get_duration(mp3_fp)
@@ -165,9 +167,7 @@ def play_ch(folder,speed,book):
                 else: 
                     t = min(t+15,dur)
                 tf.write(str(t))
-            player_p.terminate()
             player_p = start_mp3(mp3_fp, speed, t)
-            ui_p.terminate()
             ui_p = Process(target=update_t, args=(working,speed,dur,ch))
             ui_p.start()
             if not unpaused:
