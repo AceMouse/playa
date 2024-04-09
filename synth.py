@@ -5,6 +5,7 @@ import time
 import os
 import sys 
 import signal
+import re
 
 debug = False 
 print_text = False 
@@ -142,7 +143,8 @@ def to_mp3(wav_fp,out,highpass=200, lowpass=3000, debug=False):
 def get_duration(wav_fp):
     cmd = [prog_aliases["ffprobe"], "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", wav_fp]
     d = {'args': cmd,'capture_output':True} 
-    return float(subprocess.run(**d).stdout.decode().split('.')[0])+1
+    s = subprocess.run(**d).stdout.decode()
+    return float(s)
 
 def merge(working,dest,fps, ch):
     ch_fp = f"{working}/ch"
@@ -197,7 +199,7 @@ def get_dest():
             sch = int(schf.read())
         with open(f"{dir_fp}/tch.txt","r") as tchf:
             tch = int(tchf.read())
-            if tch-sch == -1:
+            if tch-sch <= -1:
                 continue
         with open(f"{dir_fp}/pch.txt","r") as pchf:
             pch = int(pchf.read())
@@ -226,8 +228,9 @@ def get_blocks(dest, ch):
     dirs = sorted(dirs)
     print(dirs)
     for dir in dirs:
-        with open(f"{ch_fp}/{dir}", "r") as b:
-            blocks += [str(b.read())]
+        if re.search(r"b\d{4}.txt", dir):
+            with open(f"{ch_fp}/{dir}", "r") as b:
+                blocks += [str(b.read())]
     print("blocks: ")
     [print(b) for b in blocks]
     return blocks
