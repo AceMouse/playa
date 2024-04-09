@@ -3,7 +3,6 @@ import torch
 import subprocess
 import time 
 import os
-import sys 
 import signal
 import re
 
@@ -181,11 +180,6 @@ tts_models = [
     "tts_models/en/multi-dataset/tortoise-v2"
 ]
 def get_dest():
-    if len(sys.argv) > 1:
-        dir = sys.argv[1]
-        if dir in exhausted or os.path.exists(f"output/{dir}/.complete"):
-            return []
-        return dir
     m = 100000 
     md = ""
     for dir in os.listdir("output"):
@@ -252,11 +246,6 @@ def main():
        os.makedirs(working)
     if not os.path.isdir(ch_dir):
        os.makedirs(ch_dir)
-    if len(sys.argv)>2:
-        with open(url_fp,"w") as urlf:
-            urlf.write(str(sys.argv[2]))
-        with open(sch_fp,"w") as schf:
-            schf.write(str(sys.argv[3]))
     ch = 0 
     while True:
         dest = get_dest()
