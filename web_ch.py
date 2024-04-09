@@ -13,7 +13,7 @@ from multiprocessing import Pool
 
 print_text = False 
 debug = False
-print_progress = False
+print_progress = True
 def get_dests():
     dests = []
     for dir in os.listdir("output"):
@@ -88,11 +88,14 @@ def worker(dest):
 
             if print_text:
                 print(text, flush=True)
-
-            for b, block in enumerate(blocks):
-                fp = f"{ch_dir}/b{b:04}.txt"
-                with open(fp,"w") as f:
-                    f.write(block)
+            b = 0 
+            for block in blocks:
+                block = block.strip()
+                if block != "":
+                    fp = f"{ch_dir}/b{b:04}.txt"
+                    with open(fp,"w") as f:
+                        f.write(block)
+                    b += 1
 
             new_cnt = 0 
             while True:
