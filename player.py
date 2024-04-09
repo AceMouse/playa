@@ -60,7 +60,6 @@ def update_t(folder,speed,dur,ch):
             times = [float(d) for d in ts.read().split("\n")[:-1]]
             for d in times:
                 block_times += [block_times[-1] + d]
-            print(f"{dur}, {sum(times)}, {len(times)}")
     block = 0 
     while True:
         with open(f"{folder}/t.txt","r") as tf:
@@ -73,10 +72,12 @@ def update_t(folder,speed,dur,ch):
         clear(lines=2)
         print(f"{format_time(t)} [{'#'*fill}{'.'*empty}] {format_time(dur)}")
         if show_block:
-            while t > block_times[block+1]:
+            while block + 1 < len(block_times) and t > block_times[block+1]:
                 block += 1 
-            with open(f"{folder}/txt/ch{ch:04}/b{block:04}.txt", "r") as f:
-                print(str(f.read()))        
+            b_fp = f"{folder}/txt/ch{ch:04}/b{block:04}.txt"
+            if os.path.exists(b_fp):
+                with open(b_fp, "r") as f:
+                    print(str(f.read()))        
         time.sleep(dt)
 
 def get_fp(folder, ch):
@@ -173,7 +174,6 @@ def play_ch(folder,speed,book):
             if not unpaused:
                 pause([player_p])
         if x in f"{KEY_UP}{KEY_DOWN}ws":
-            _print(f"key = {x}")
             player_p.terminate()
             ui_p.terminate()
             with open(f"{working}/t.txt","r") as tf:
@@ -202,12 +202,27 @@ def play_ch(folder,speed,book):
 
 dbfp = "output/.def_book"
 dsfp = "output/.def_speed"
-def get_input():
+def get_speed():
     default_speed_existed = True
     if not os.path.isfile(dsfp):
         default_speed_existed = False 
         with open(dsfp, "w") as dsf:
             dsf.write("1")
+    with open(dsfp, "r") as dsf:
+        default_speed = float(dsf.read())
+    speed = default_speed
+    if not default_speed_existed:
+        i, _ = timedKeyOrNumber(f"Choose a speed ({default_speed}):\n", timeout = -1, allowCharacters = "t", allowNegative = False, pollRate = pollRate)
+        clear()
+        if i == 't':
+            return get_input()
+        if i != None:
+            speed = i
+        with open(dsfp, "w") as dsf:
+            dsf.write(str(speed))
+    return speed
+
+def get_input():
     book = "" 
     clear()
     if len(sys.argv) <= 1:
@@ -257,19 +272,6 @@ def get_input():
         book = sys.argv[1]
 
     folder = f"output/{book}"
-    default_speed = 1   
-    with open(dsfp, "r") as dsf:
-        default_speed = float(dsf.read())
-    speed = default_speed
-    if not default_speed_existed:
-        i, _ = timedKeyOrNumber(f"Choose a speed ({default_speed}):\n", timeout = -1, allowCharacters = "t", allowNegative = False, pollRate = pollRate)
-        clear()
-        if i == 't':
-            return get_input()
-        if i != None:
-            speed = i
-        with open(dsfp, "w") as dsf:
-            dsf.write(str(speed))
 
     if len(sys.argv) > 2:
         with open(f"{folder}/.working/pch.txt","w") as chf:
@@ -279,7 +281,7 @@ def get_input():
     if len(sys.argv) > 3:
         with open(f"{folder}/.working/t.txt","w") as tf:
             tf.write(sys.argv[3])
-    return (folder,speed,book)
+    return (folder, get_speed(), book)
 
 def play():
     os.nice(19)
@@ -288,6 +290,7 @@ def play():
     while True:
         if play_ch(folder, speed, book) == 1:
             folder, speed, book = get_input()
+        speed = get_speed()
 
 def clear(lines=1):
     if not debug: 
