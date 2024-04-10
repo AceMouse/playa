@@ -183,8 +183,6 @@ def get_dest():
     m = 100000 
     md = ""
     for dir in os.listdir("output"):
-        if os.path.exists(f"output/{dir}/.complete"):
-            continue
         dir_fp = f"output/{dir}/.working"
         if not os.path.isdir(dir_fp):
             continue

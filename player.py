@@ -98,7 +98,8 @@ def unpause(processes):
     return pause(processes, unpause = True)
 
 
-def play_ch(folder,speed,book):
+def play_ch(speed,book):
+    folder = f"output/{book}"
     ch = 0
     t = 0
     working = f"{folder}/.working"
@@ -126,6 +127,8 @@ def play_ch(folder,speed,book):
     ui_p.start()
     player_p = start_mp3(mp3_fp, speed, t)
     unpaused = True
+    prec1 = ''
+    prec2 = ''
     while True:
         with open(f"{working}/t.txt","r") as tf:
             z = tf.read()
@@ -136,10 +139,13 @@ def play_ch(folder,speed,book):
         if dur-t <= 0:
             break
 
-        x, timedOut = timedKey(timeout=-1 if not unpaused else (dur-t)/speed, resetOnInput = False, allowCharacters=f" pt{KEY_LEFT}{KEY_RIGHT}{KEY_UP}{KEY_DOWN}wsjk",pollRate = pollRate)
+        x, timedOut = timedKey(timeout=-1 if not unpaused else (dur-t)/speed, resetOnInput = False, allowCharacters=f" pt{KEY_LEFT}{KEY_RIGHT}{KEY_UP}{KEY_DOWN}{PREC}wsjk",pollRate = pollRate)
         if timedOut:
             break
-        #print("\n")
+        
+        prec = prec1 + prec2
+        prec1 = prec2
+        prec2 = x
         clear(lines=3)
         if x in ' p':
             unpaused = not unpaused
@@ -150,7 +156,7 @@ def play_ch(folder,speed,book):
             player_p.terminate()
             ui_p.terminate()
             return 1 
-        if x in f"{KEY_LEFT}{KEY_RIGHT}jk":
+        if (x in f"{KEY_LEFT}{KEY_RIGHT}" and prec == PREC) or x in "jk":
             player_p.terminate()
             ui_p.terminate()
             with open(f"{working}/t.txt","r") as tf:
@@ -173,7 +179,7 @@ def play_ch(folder,speed,book):
             ui_p.start()
             if not unpaused:
                 pause([player_p])
-        if x in f"{KEY_UP}{KEY_DOWN}ws":
+        if(x in f"{KEY_UP}{KEY_DOWN}" and prec == PREC) or x in "ws":
             player_p.terminate()
             ui_p.terminate()
             with open(f"{working}/t.txt","r") as tf:
@@ -215,91 +221,68 @@ def get_speed():
         i, _ = timedKeyOrNumber(f"Choose a speed ({default_speed}):\n", timeout = -1, allowCharacters = "t", allowNegative = False, pollRate = pollRate)
         clear()
         if i == 't':
-            return get_input()
+            return get_book()
         if i != None:
             speed = i
         with open(dsfp, "w") as dsf:
             dsf.write(str(speed))
     return speed
 
-def get_input():
-    book = "" 
+def get_book():
     clear()
-    if len(sys.argv) <= 1:
-        books = []
-        for dir in os.listdir("output"):
-            dir_fp = f"output/{dir}"
-            if not os.path.isdir(dir_fp):
-                continue
-            books += [dir] 
-        if not os.path.isfile(dbfp):
-            with open(dbfp, "w") as dbf:
-                dbf.write(books[0])
+    book = "" 
+    books = []
+    for dir in os.listdir("output"):
+        dir_fp = f"output/{dir}"
+        if not os.path.isdir(dir_fp):
+            continue
+        books += [dir] 
+    if not os.path.isfile(dbfp):
+        with open(dbfp, "w") as dbf:
+            dbf.write(books[0])
 
-        default_book = ""
-        with open(dbfp, "r") as dbf:
-            default_book = str(dbf.read())
-        book = default_book
-        arrow_number = books.index(default_book)
-        while True:
-            clear()
-            print(f"Choose a book (1-{len(books)}):")
-            for i,b in enumerate(books):
-                if i == arrow_number:
-                    print(f"->{i+1} {b}")
-                else: 
-                    print(f"  {i+1} {b}")
-            i, _ = timedKeyOrNumber("", timeout = -1, allowCharacters = f"tws", allowNegative = False, allowFloat = False, pollRate = pollRate)
-            if i == 't':
-                quit(0)
-            if i == "w":
-                arrow_number = max(0, arrow_number-1)
-                book = books[arrow_number]
-                continue
-            if i == "s":
-                arrow_number = min(len(books)-1, arrow_number+1)
-                book = books[arrow_number]
-                continue
-            if i != None:
-                if i == 0 or i > len(books):
-                    continue
-                book = books[i-1]
-            with open(dbfp, "w") as dbf:
-                dbf.write(book)
-            break
+    default_book = ""
+    with open(dbfp, "r") as dbf:
+        default_book = str(dbf.read())
+    book = default_book
+    arrow_number = books.index(default_book)
+    while True:
         clear()
-    else:
-        book = sys.argv[1]
-
-    folder = f"output/{book}"
-
-    if len(sys.argv) > 2:
-        with open(f"{folder}/.working/pch.txt","w") as chf:
-            chf.write(sys.argv[2])
-        with open(f"{folder}/.working/t.txt","w") as tf:
-            tf.write("0")
-    if len(sys.argv) > 3:
-        with open(f"{folder}/.working/t.txt","w") as tf:
-            tf.write(sys.argv[3])
-    return (folder, get_speed(), book)
+        print(f"Choose a book (1-{len(books)}):")
+        print('\n'.join([f"{'->'*(i == arrow_number):<2}{i+1} {b}" for i,b in enumerate(books)]))
+        i, _ = timedKeyOrNumber("", timeout = -1, allowCharacters = f"tws", allowNegative = False, allowFloat = False, pollRate = pollRate)
+        if i == 't':
+            quit(0)
+        if i == "w":
+            arrow_number = max(0, arrow_number-1)
+            book = books[arrow_number]
+            continue
+        if i == "s":
+            arrow_number = min(len(books)-1, arrow_number+1)
+            book = books[arrow_number]
+            continue
+        if i != None:
+            if i == 0 or i > len(books):
+                continue
+            book = books[i-1]
+        with open(dbfp, "w") as dbf:
+            dbf.write(book)
+        break
+    clear()
+    return book
 
 def play():
     os.nice(19)
-    folder, speed, book = get_input()
-    print()
+    book = get_book()
     while True:
-        if play_ch(folder, speed, book) == 1:
-            folder, speed, book = get_input()
         speed = get_speed()
+        if play_ch(speed, book) == 1:
+            book = get_book()
 
 def clear(lines=1):
     if not debug: 
         print(f"\033[{lines};1H\033[0J", end="")
-
-LINE_UP = '' if debug else '\033[1A' 
-LINE_CLEAR = '' if debug else '\x1b[2K'
-ARROW_PRECURSOR_1 = '\033'
-ARROW_PRECURSOR_2 = '['
+PREC = '\033['
 KEY_UP    = 'A'
 KEY_LEFT  = 'D'
 KEY_DOWN  = 'B'
