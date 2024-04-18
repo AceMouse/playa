@@ -3,6 +3,7 @@ import time
 import os
 import sys 
 from pytimedinput import timedKey, timedKeyOrNumber
+import safer
 pollRate = 0.1
 
 def _print(x):
@@ -27,7 +28,6 @@ def run(cmd):
 from multiprocessing import Process 
 
 import signal
-
 def signal_handler(sig, frame):
     if 'ui_p' in frame.f_locals:
         frame.f_locals['ui_p'].terminate()
@@ -37,7 +37,7 @@ def signal_handler(sig, frame):
         frame.f_locals['player_p'].kill()
     elif 'player_p' in frame.f_globals:
         frame.f_globals['player_p'].kill()
-    sys.exit(0)
+    sys.exit(sig)
 
 signal.signal(signal.SIGINT, signal_handler)
 
@@ -48,43 +48,60 @@ def format_time(in_sec):
     msec = int((in_sec*1000)%1000)
     return f"{hr:02}:{min:02}:{sec:02}:{msec:03}"
 
-def update_t(folder,speed,dur,ch,once=False):
-    t = 0
+def progress_bar(t,dur):
     l = 20
-    dt = 1/speed 
-    ts_fp = f"{folder}/txt/ch{ch:04}/timestamps.txt"
-    show_block = os.path.isfile(ts_fp)
+    fill = int((t*l)/dur)
+    empty = 20-fill 
+    return f"{format_time(t)} [{'#'*fill}{'.'*empty}] {format_time(dur)}"
+
+def get_ch_txt_fp(book, ch):
+    return f"output/{book}/.working/txt/ch{ch:04}"
+
+def get_block_times(book, ch):
+    ts_fp = f"{get_ch_txt_fp(book,ch)}/timestamps.txt"
+    if not os.path.isfile(ts_fp):
+        return None
     block_times = [0]
-    if show_block:
-        with open(ts_fp, "r") as ts :
-            times = [float(d) for d in ts.read().split("\n")[:-1]]
-            for d in times:
-                block_times += [block_times[-1] + d]
+    with safer.open(ts_fp, "r") as ts :
+        times = [float(d) for d in ts.read().split("\n")[:-1]]
+        for d in times:
+            block_times += [block_times[-1] + d]
+    return block_times
+
+def get_block(t, block_times, book, ch, prev_block=0):
+    if block_times is None:
+        return ("", prev_block)
+    block = prev_block
+    while block + 1 < len(block_times) and t > block_times[block+1]:
+        block += 1 
+    b_fp = f"{get_ch_txt_fp(book,ch)}/b{block:04}.txt"
+    if not os.path.exists(b_fp):
+        return ("", block)
+    with safer.open(b_fp, "r") as f:
+        return (str(f.read()), block)
+
+def update_t(book,speed,dur,ch,once=False):
+    t = 0
+    dt = 1/speed 
+    block_times = get_block_times(book, ch)
     block = 0 
     while True:
-        with open(f"{folder}/t.txt","r") as tf:
+        with safer.open(get_t_fp(book),"r") as tf:
             t = float(tf.read())
-        with open(f"{folder}/t.txt","w") as tf:
+        with safer.open(get_t_fp(book),"w") as tf:
             tf.write(str(t+speed*dt))
 
-        fill = int((t*l)/dur)
-        empty = 20-fill 
         clear(lines=2)
-        print(f"{format_time(t)} [{'#'*fill}{'.'*empty}] {format_time(dur)}")
-        if show_block:
-            while block + 1 < len(block_times) and t > block_times[block+1]:
-                block += 1 
-            b_fp = f"{folder}/txt/ch{ch:04}/b{block:04}.txt"
-            if os.path.exists(b_fp):
-                with open(b_fp, "r") as f:
-                    print(str(f.read()))        
+        print(progress_bar(t,dur))
+        text, block = get_block(t, block_times, book, ch, block)
+        print(text)
         if once:
             break
         time.sleep(dt)
         
 
-def get_fp(folder, ch):
-    return f"{folder}/ch{ch:04}.mp3"
+def get_mp3_fp(book, ch):
+    return f"output/{book}/ch{ch:04}.mp3"
 
 def get_duration(mp3_fp):
     return float(run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", mp3_fp]).stdout.decode())
@@ -92,29 +109,30 @@ def get_duration(mp3_fp):
 def start_mp3(mp3_fp, speed, t):
     return popen(["ffplay","-af",f"atempo={speed}", "-nodisp", "-autoexit", "-stats", "-ss", f"{t}s", mp3_fp])
 
-def pause(processes, unpause = False):
-    s = signal.SIGCONT if unpause else signal.SIGSTOP
-    for p in processes:
-        os.kill(p.pid, s)
+def get_t_fp(book):
+    return f"output/{book}/.working/t.txt"
 
-def unpause(processes):
-    return pause(processes, unpause = True)
+def get_pch_fp(book):
+    return f"output/{book}/.working/pch.txt"
 
+def get_header(book, ch, speed):
+    return f"playing {book} ch: {ch} ({speed}x)\n"
 
 def play_ch(speed,book):
-    folder = f"output/{book}"
     ch = 0
     t = 0
-    working = f"{folder}/.working"
-    with open(f"{working}/pch.txt","r") as chf:
+    with safer.open(get_pch_fp(book),"r") as chf:
         ch = int(chf.read())
-    with open(f"{working}/t.txt","r") as tf:
-        t = max(float(tf.read())-5,0)
-    with open(f"{working}/t.txt","w") as tf:
+    with safer.open(get_t_fp(book),"r") as tf:
+        try:
+            t = max(float(tf.read())-5,0)
+        except:
+            t = 0
+    with safer.open(get_t_fp(book),"w") as tf:
         tf.write(str(t))
-    mp3_fp = get_fp(folder, ch)
+    mp3_fp = get_mp3_fp(book, ch)
     clear()
-    print(f"playing {book} ch: {ch} ({speed}x)\n")
+    print(get_header(book,ch,speed))
     w = 1 
     while not os.path.isfile(mp3_fp):
         clear()
@@ -126,87 +144,103 @@ def play_ch(speed,book):
         if x == 't':
             return 1 
     dur = get_duration(mp3_fp) 
-    ui_p = Process(target=update_t, args=(working,speed,dur,ch))
+    ui_p = Process(target=update_t, args=(book,speed,dur,ch))
     ui_p.start()
     player_p = start_mp3(mp3_fp, speed, t)
     unpaused = True
     prec1 = ''
     prec2 = ''
+    block_times = get_block_times(book, ch)
     while True:
-        with open(f"{working}/t.txt","r") as tf:
-            z = tf.read()
-            if z == "":
-                z = 0 
-            t = float(z)
+        with safer.open(get_t_fp(book),"r") as tf:
+            t = float(tf.read())
 
         if dur-t <= 0:
             break
 
-        x, timedOut = timedKey(timeout=-1 if not unpaused else (dur-t)/speed, resetOnInput = False, allowCharacters=f" pt{KEY_LEFT}{KEY_RIGHT}{KEY_UP}{KEY_DOWN}{PREC}wsjk",pollRate = pollRate)
+        x, timedOut = timedKey(timeout=-1 if not unpaused else (dur-t)/speed, resetOnInput = False, allowCharacters=f" pt{KEY_LEFT}{KEY_RIGHT}{KEY_UP}{KEY_DOWN}{PREC}wsjk",pollRate = pollRate, eatInput = True)
         if timedOut:
             break
-        
         prec = prec1 + prec2
         prec1 = prec2
         prec2 = x
-        clear(lines=3)
-        update_t(working, speed, dur, ch, once=True)
+        
         if x in ' p':
             unpaused = not unpaused
-            pause([player_p, ui_p], unpause = unpaused)
+            if unpaused:
+                player_p = start_mp3(mp3_fp, speed, t)
+                ui_p = Process(target=update_t, args=(book,speed,dur,ch))
+                ui_p.start()
+            else:
+                player_p.kill()
+                ui_p.terminate()
         if x == 't':
-            if not unpaused:
-                unpause([player_p, ui_p])
-            player_p.terminate()
-            ui_p.terminate()
+            if unpaused:
+                player_p.kill()
+                ui_p.terminate()
             return 1 
         if (x in f"{KEY_LEFT}{KEY_RIGHT}" and prec == PREC) or x in "jk":
-            player_p.terminate()
+            player_p.kill()
             ui_p.terminate()
-            with open(f"{working}/t.txt","r") as tf:
+            with safer.open(get_t_fp(book),"r") as tf:
                 t = float(tf.read())
-            with open(f"{working}/t.txt","w") as tf:
+            with safer.open(get_t_fp(book),"w") as tf:
                 if x in f"{KEY_LEFT}j": 
-                    if t < 5 and os.path.isfile(get_fp(folder, ch-1)):
+                    if t < 15 and os.path.isfile(get_mp3_fp(book, ch-1)):
                         ch -= 1
-                        mp3_fp = get_fp(folder, ch)
+                        block_times = get_block_times(book, ch)
+                        mp3_fp = get_mp3_fp(book, ch)
                         dur = get_duration(mp3_fp)
                         t += dur 
+                        clear_line(1)
+                        print(get_header(book, ch, speed))
+                        with safer.open(get_pch_fp(book),"w") as chf:
+                            chf.write(str(ch))
                     t = max(t-15,0)
-                    clear()
-                    print(f"playing {book} ch: {ch} ({speed}x)\n")
                 else: 
+                    if t > dur - 15 and os.path.isfile(get_mp3_fp(book, ch+1)):
+                        ch += 1
+                        block_times = get_block_times(book, ch)
+                        mp3_fp = get_mp3_fp(book, ch)
+                        t -= dur 
+                        dur = get_duration(mp3_fp)
+                        clear_line(1)
+                        print(get_header(book,ch, speed))
+                        with safer.open(get_pch_fp(book),"w") as chf:
+                            chf.write(str(ch))
                     t = min(t+15,dur)
                 tf.write(str(t))
-            player_p = start_mp3(mp3_fp, speed, t)
-            ui_p = Process(target=update_t, args=(working,speed,dur,ch))
-            ui_p.start()
-            if not unpaused:
-                pause([player_p])
+            clear(lines=2)
+            print(progress_bar(t,dur))
+            text, b = get_block(t, block_times, book, ch)
+            print(text)
+            if unpaused:
+                player_p = start_mp3(mp3_fp, speed, t)
+                ui_p = Process(target=update_t, args=(book,speed,dur,ch))
+                ui_p.start()
         if(x in f"{KEY_UP}{KEY_DOWN}" and prec == PREC) or x in "ws":
-            player_p.terminate()
+            player_p.kill()
             ui_p.terminate()
-            with open(f"{working}/t.txt","r") as tf:
+            with safer.open(get_t_fp(book),"r") as tf:
                 t = float(tf.read())
             if x in f"{KEY_DOWN}s":
                 speed = max(speed-0.25, 0.25)
             else:
                 speed = speed+0.25
-            with open(dsfp, "w") as dsf:
+            with safer.open(dsfp, "w") as dsf:
                 dsf.write(str(speed))
-            clear()
-            print(f"playing {book} ch: {ch} ({speed}x)\n")
-            player_p = start_mp3(mp3_fp, speed, t)
-            ui_p = Process(target=update_t, args=(working,speed,dur,ch))
-            ui_p.start()
-            if not unpaused:
-                pause([player_p, ui_p])
+            clear_line(1)
+            print(get_header(book,ch,speed))
+            if unpaused:
+                player_p = start_mp3(mp3_fp, speed, t)
+                ui_p = Process(target=update_t, args=(book,speed,dur,ch))
+                ui_p.start()
 
     player_p.wait()
     ui_p.terminate()
-    with open(f"{working}/t.txt","w") as tf:
+    with safer.open(get_t_fp(book),"w") as tf:
         tf.write("0")
-    with open(f"{working}/pch.txt","w") as chf:
+    with safer.open(get_pch_fp(book),"w") as chf:
         chf.write(str(ch+1))
     return 0 
 
@@ -216,9 +250,9 @@ def get_speed():
     default_speed_existed = True
     if not os.path.isfile(dsfp):
         default_speed_existed = False 
-        with open(dsfp, "w") as dsf:
+        with safer.open(dsfp, "w") as dsf:
             dsf.write("1")
-    with open(dsfp, "r") as dsf:
+    with safer.open(dsfp, "r") as dsf:
         default_speed = float(dsf.read())
     speed = default_speed
     if not default_speed_existed:
@@ -228,7 +262,7 @@ def get_speed():
             return get_book()
         if i != None:
             speed = i
-        with open(dsfp, "w") as dsf:
+        with safer.open(dsfp, "w") as dsf:
             dsf.write(str(speed))
     return speed
 
@@ -242,11 +276,11 @@ def get_book():
             continue
         books += [dir] 
     if not os.path.isfile(dbfp):
-        with open(dbfp, "w") as dbf:
+        with safer.open(dbfp, "w") as dbf:
             dbf.write(books[0])
 
     default_book = ""
-    with open(dbfp, "r") as dbf:
+    with safer.open(dbfp, "r") as dbf:
         default_book = str(dbf.read())
     book = default_book
     arrow_number = books.index(default_book)
@@ -256,7 +290,6 @@ def get_book():
         print('\n'.join([f"{'->'*(i == arrow_number):<2}{i+1:>2} {b}" for i,b in enumerate(books)]))
         i, _ = timedKeyOrNumber("", timeout = -1, allowCharacters = f"tws", allowNegative = False, allowFloat = False, pollRate = pollRate)
         if i == 't':
-            clear()
             quit(0)
         if i == "w":
             arrow_number = max(0, arrow_number-1)
@@ -270,7 +303,7 @@ def get_book():
             if i == 0 or i > len(books):
                 continue
             book = books[i-1]
-        with open(dbfp, "w") as dbf:
+        with safer.open(dbfp, "w") as dbf:
             dbf.write(book)
         break
     clear()
@@ -286,7 +319,15 @@ def play():
 
 def clear(lines=1):
     if not debug: 
-        print(f"\033[{lines};1H\033[0J", end="")
+        print(f"\033[{lines};1H\033[0J", end="", flush=True)
+
+def clear_line(line):
+    if not debug: 
+        print(f"\033[{line};1H\033[2K", end="")
+
+def clear_input_line():
+    if not debug: 
+        print(f"\033[2K", end="")
 PREC = '\033['
 KEY_UP    = 'A'
 KEY_LEFT  = 'D'

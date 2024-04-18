@@ -25,11 +25,11 @@ def get_dests():
 
         folder = f"output/{dir}"
         working = f"{folder}/.working"
-        sch_fp = f"{working}/sch.txt"
+        pch_fp = f"{working}/pch.txt"
         tch_fp = f"{working}/tch.txt"
         with open(tch_fp, "r") as chf:
-            with open(sch_fp, "r") as schf:
-                dests += [(dir,int(schf.read())-int(chf.read()))]
+            with open(pch_fp, "r") as pchf:
+                dests += [(dir,int(pchf.read())-int(chf.read()))]
     dests = [x for x,_ in sorted(dests, key = lambda x:x[1], reverse = True)]
     return dests
 
@@ -154,16 +154,17 @@ def clean_text(text):
 def misc_clean(text):
     text = re.sub("'", '', text) #remove 's for now, figure contractions out. 
     text = re.sub('"', '', text)  
-#    text = re.sub('\\n', '', text)  
-    text = re.sub('\.\.+', '.', text)
-    text = re.sub('\[|\]', '', text)
-    text = re.sub('([a-zA-Z])([0-9])', r'\1 \2', text, flags=re.MULTILINE)
-    text = re.sub('(\d+(\.\d+)?) */ *(\d+(\.\d+)?)', r'\1 out of \3', text)
-    text = re.sub('^[\W_]+$', '', text, flags=re.MULTILINE)
-    text = re.sub('([\W_ ])lv([\W_ ])', r'\1level\2', text, flags=re.IGNORECASE)
-    text = re.sub('([\W_ ])e?xp([\W_ ])', r'\1experience\2', text, flags=re.IGNORECASE)
-    text = re.sub('(->)|(~)', ' to ', text)
-    text = re.sub(' +', ' ', text)
+    text = re.sub(r'\\n', '\n', text)  
+    text = re.sub(r'\.\.+', '.', text)
+    text = re.sub(r'\[|\]', '', text)
+    text = re.sub(r'([a-zA-Z])([0-9])', r'\1 \2', text, flags=re.MULTILINE)
+    text = re.sub(r'(\d+(\.\d+)?) */ *(\d+(\.\d+)?)', r'\1 out of \3', text)
+    text = re.sub(r'^[\W_]+$', '', text, flags=re.MULTILINE)
+    text = re.sub(r'([\W_ ])lv([\W_ ])', r'\1level\2', text, flags=re.IGNORECASE)
+    text = re.sub(r'([\W_ ])e?xp([\W_ ])', r'\1experience\2', text, flags=re.IGNORECASE)
+    text = re.sub(r'(->)|(~)', ' to ', text)
+    text = re.sub(r' +', ' ', text)
+    text = re.sub(r'\<|\>','', text)
     return text 
 
 def uncensor_text(text):
@@ -187,10 +188,16 @@ def expand_contractions(text):
 def remove_after(rtext,text):
     return re.sub(rtext + r'(.|\n)*', '', text, flags=re.MULTILINE | re.IGNORECASE)
 
+def remove(rtext,text):
+    return re.sub(rtext, '', text, flags=re.MULTILINE | re.IGNORECASE)
+
 def libread_clean(text):
     lines = text.split('\n')
     if 'libread' in lines[-1]: 
         text = '\n'.join(lines[:-1])
+    text = remove("Dear reader, our website is running thanks to our ads. Please consider supporting us and the translators by disabling your ad blocker", text)
+    text = remove("Alternatively, you could also subscribe for only $3 a month at Disabled for now. With the subscription you will enjoy an ad-free experience, and also have access to all the VIP chapters.", text)
+    text = remove("libread.com", text)
     text = remove_after(r'Written( and Directed)? by Avans, Published( exclusively)? by W\.e\.b\.n\.o\.v\.e\.l', text)
     text = remove_after(r'For discussion Join Avans Discord server', text)
     return text
