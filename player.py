@@ -48,7 +48,7 @@ def format_time(in_sec):
     msec = int((in_sec*1000)%1000)
     return f"{hr:02}:{min:02}:{sec:02}:{msec:03}"
 
-def update_t(folder,speed,dur,ch):
+def update_t(folder,speed,dur,ch,once=False):
     t = 0
     l = 20
     dt = 1/speed 
@@ -78,7 +78,10 @@ def update_t(folder,speed,dur,ch):
             if os.path.exists(b_fp):
                 with open(b_fp, "r") as f:
                     print(str(f.read()))        
+        if once:
+            break
         time.sleep(dt)
+        
 
 def get_fp(folder, ch):
     return f"{folder}/ch{ch:04}.mp3"
@@ -147,6 +150,7 @@ def play_ch(speed,book):
         prec1 = prec2
         prec2 = x
         clear(lines=3)
+        update_t(working, speed, dur, ch, once=True)
         if x in ' p':
             unpaused = not unpaused
             pause([player_p, ui_p], unpause = unpaused)
@@ -249,9 +253,10 @@ def get_book():
     while True:
         clear()
         print(f"Choose a book (1-{len(books)}):")
-        print('\n'.join([f"{'->'*(i == arrow_number):<2}{i+1} {b}" for i,b in enumerate(books)]))
+        print('\n'.join([f"{'->'*(i == arrow_number):<2}{i+1:>2} {b}" for i,b in enumerate(books)]))
         i, _ = timedKeyOrNumber("", timeout = -1, allowCharacters = f"tws", allowNegative = False, allowFloat = False, pollRate = pollRate)
         if i == 't':
+            clear()
             quit(0)
         if i == "w":
             arrow_number = max(0, arrow_number-1)

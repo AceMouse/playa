@@ -13,7 +13,7 @@ else:
     import termios
 
 
-def timedInput(prompt: str = "", timeout: float = 5, resetOnInput: bool = True, maxLength: int = 0, allowCharacters: str = "", endCharacters: str = "\x1b\n\r", pollRate: float = 0) -> Tuple[str, bool]:
+def timedInput(prompt: str = "", timeout: float = 5, resetOnInput: bool = True, maxLength: int = 0, allowCharacters: str = "", endCharacters: str = "\x1b\n\r", pollRate: float = 0, eatInput: bool = False) -> Tuple[str, bool]:
     """Ask the user for text input with an optional timeout and limit on allowed characters.
 
     Args:
@@ -32,9 +32,9 @@ def timedInput(prompt: str = "", timeout: float = 5, resetOnInput: bool = True, 
         return "", False
     if(len(endCharacters) == 0):
         return "", False
-    return __timedInput(prompt, timeout, resetOnInput, maxLength, allowCharacters, endCharacters, pollRate)
+    return __timedInput(prompt, timeout, resetOnInput, maxLength, allowCharacters, endCharacters, pollRate, eatInput=eatInput)
 
-def timedKeyOrNumber(prompt: str = "", timeout: float = 5, resetOnInput: bool = True, allowCharacters: str = "",allowNegative: bool = True, allowFloat: bool = True, pollRate: float = 0) -> Tuple[Union[str, int, float, None], bool]:
+def timedKeyOrNumber(prompt: str = "", timeout: float = 5, resetOnInput: bool = True, allowCharacters: str = "",allowNegative: bool = True, allowFloat: bool = True, pollRate: float = 0, eatInput: bool = False) -> Tuple[Union[str, int, float, None], bool]:
     """Ask the user to press a single key out of an optional list of allowed ones or an integer or float value.
 
     Args:
@@ -60,13 +60,13 @@ def timedKeyOrNumber(prompt: str = "", timeout: float = 5, resetOnInput: bool = 
             extraAllowedCharacters.remove(c) 
     extraAllowedCharactersFinal = "".join(extraAllowedCharacters)
 
-    x, timedOut = __timedInput(prompt, timeout, resetOnInput, maxLength=1, allowCharacters=allowCharacters + extraAllowedCharactersFinal, endCharacters="\x1b\n\r", inputType="single", pollRate = pollRate, newline = False)
+    x, timedOut = __timedInput(prompt, timeout, resetOnInput, maxLength=1, allowCharacters=allowCharacters + extraAllowedCharactersFinal, endCharacters="\x1b\n\r", inputType="single", pollRate = pollRate, newline = False, eatInput = eatInput)
     if x == "":
         return None, timedOut
     if timedOut or x in allowCharacters: 
         return x, timedOut
     userInput, timedOut = __timedInput(
-        "", timeout, resetOnInput, allowCharacters="", inputType="float" if allowFloat else "integer", pollRate = pollRate, userInput = x)
+        "", timeout, resetOnInput, allowCharacters="", inputType="float" if allowFloat else "integer", pollRate = pollRate, userInput = x, eatInput=eatInput)
     try:
         return float(userInput) if allowFloat else int(userInput), timedOut
     except:
@@ -75,7 +75,7 @@ def timedKeyOrNumber(prompt: str = "", timeout: float = 5, resetOnInput: bool = 
 
 
 
-def timedKey(prompt: str = "", timeout: float = 5, resetOnInput: bool = True, allowCharacters: str = "", pollRate: float = 0) -> Tuple[str, bool]:
+def timedKey(prompt: str = "", timeout: float = 5, resetOnInput: bool = True, allowCharacters: str = "", pollRate: float = 0, eatInput: bool = False) -> Tuple[str, bool]:
     """Ask the user to press a single key out of an optional list of allowed ones.
 
     Args:
@@ -88,10 +88,10 @@ def timedKey(prompt: str = "", timeout: float = 5, resetOnInput: bool = True, al
     Returns:
         Tuple[str, bool]: Which key the user pressed and whether the input timed out or not.
     """
-    return __timedInput(prompt, timeout, resetOnInput, maxLength=1, allowCharacters=allowCharacters, endCharacters="", inputType="single", pollRate = pollRate)
+    return __timedInput(prompt, timeout, resetOnInput, maxLength=1, allowCharacters=allowCharacters, endCharacters="", inputType="single", pollRate = pollRate, eatInput = eatInput)
 
 
-def timedInteger(prompt: str = "", timeout: float = 5, resetOnInput: bool = True, allowNegative: bool = True, pollRate: float = 0) -> Tuple[Union[int, None], bool]:
+def timedInteger(prompt: str = "", timeout: float = 5, resetOnInput: bool = True, allowNegative: bool = True, pollRate: float = 0, eatInput: bool = False) -> Tuple[Union[int, None], bool]:
     """Ask the user to enter an integer value.
 
     Args:
@@ -105,14 +105,14 @@ def timedInteger(prompt: str = "", timeout: float = 5, resetOnInput: bool = True
         Tuple[Union[int, None], bool]: The value entered by the user and whether the input timed out or not.
     """
     userInput, timedOut = __timedInput(
-        prompt, timeout, resetOnInput, allowCharacters="-" if(allowNegative) else "", inputType="integer", pollRate = pollRate)
+        prompt, timeout, resetOnInput, allowCharacters="-" if(allowNegative) else "", inputType="integer", pollRate = pollRate, eatInput = eatInput)
     try:
         return int(userInput), timedOut
     except:
         return None, timedOut
 
 
-def timedFloat(prompt: str = "", timeout: float = 5, resetOnInput: bool = True, allowNegative: bool = True, pollRate: float = 0) -> Tuple[Union[float, None], bool]:
+def timedFloat(prompt: str = "", timeout: float = 5, resetOnInput: bool = True, allowNegative: bool = True, pollRate: float = 0, eatInput: bool = False) -> Tuple[Union[float, None], bool]:
     """Ask the user to enter a floating-point value.
 
     Args:
@@ -126,13 +126,13 @@ def timedFloat(prompt: str = "", timeout: float = 5, resetOnInput: bool = True, 
         Tuple[Union[float, None], bool]: The value entered by the user and whether the input timed out or not.
     """
     userInput, timedOut = __timedInput(
-        prompt, timeout, resetOnInput, allowCharacters="-" if(allowNegative) else "", inputType="float", pollRate = pollRate)
+        prompt, timeout, resetOnInput, allowCharacters="-" if(allowNegative) else "", inputType="float", pollRate = pollRate, eatInput = eatInput)
     try:
         return float(userInput), timedOut
     except:
         return None, timedOut
 
-def __timedInput(prompt: str = "", timeout: float = 5, resetOnInput: bool = True, maxLength: int = 0, allowCharacters: str = "", endCharacters: str = "\x1b\n\r", inputType: str = "text", pollRate: float = 0, newline: bool = True, userInput: str = "") -> Tuple[str, bool]:
+def __timedInput(prompt: str = "", timeout: float = 5, resetOnInput: bool = True, maxLength: int = 0, allowCharacters: str = "", endCharacters: str = "\x1b\n\r", inputType: str = "text", pollRate: float = 0, newline: bool = True, userInput: str = "", eatInput: bool = False) -> Tuple[str, bool]:
     def checkStdin():
         if(sys.platform == "win32"):
             return msvcrt.kbhit()
@@ -185,7 +185,8 @@ def __timedInput(prompt: str = "", timeout: float = 5, resetOnInput: bool = True
                         if(inputCharacter == "." and inputCharacter in userInput):
                             inputCharacter = ""
                     userInput = userInput + inputCharacter
-                    print(inputCharacter, end='', flush=True)
+                    if not eatInput:
+                        print(inputCharacter, end='', flush=True)
                     if(maxLength == 1 and len(userInput) == 1 and inputType == "single"):
                         break
                 else:
