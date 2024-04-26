@@ -82,6 +82,9 @@ def worker(dest, tui):
             ch_dir = f"{txt_dir}/ch{ch:04}"
             if not os.path.isdir(ch_dir):
                os.makedirs(ch_dir)
+            else:
+                for dir in os.listdir(ch_dir):
+                    os.remove(f"{ch_dir}/{dir}")
 
             if print_progress:
                 tui.place_text(f"getting: {dest}/{ch}", height=1)
@@ -148,9 +151,8 @@ def worker(dest, tui):
                         break
     finally:
         driver.quit()
-
 def clean_text(text):
-    text = clean(text, lower=False, no_urls=True, replace_with_url="")
+    text = clean(text, lower=False, no_urls=True, replace_with_url="", to_ascii=True)
     text = expand_contractions(remove_emoji(uncensor_text(misc_clean(text))))
     text = re.sub('If you find any errors \( Ads popup, ads redirect, broken links, non-standard content, etc\. \), Please let us know < report chapter > so we can fix it as soon as possible\.', '', text, flags= re.MULTILINE|re.IGNORECASE)
     return text
@@ -161,6 +163,7 @@ def misc_clean(text):
     text = re.sub(r'\\n', '\n', text)  
     text = re.sub(r'\.\.+', '.', text)
     text = re.sub(r'\[|\]', '', text)
+    text = re.sub(r'\(|\)', '', text)
     text = re.sub(r'([a-zA-Z])([0-9])', r'\1 \2', text, flags=re.MULTILINE)
     text = re.sub(r'(\d+(\.\d+)?) */ *(\d+(\.\d+)?)', r'\1 out of \3', text)
     text = re.sub(r'^[\W_]+$', '', text, flags=re.MULTILINE)
@@ -197,10 +200,20 @@ def remove(rtext,text):
 
 def libread_clean(text):
     lines = text.split('\n')
-    if 'libread' in lines[-1]: 
+    while lines[-1].strip() == "":
+        lines = lines[:-1]
+    if 'libread' in lines[-1] or 'free' in lines[-1] or 'novel' in lines[-1] or 'web' in lines[-1]: 
         text = '\n'.join(lines[:-1])
-    text = remove("Dear reader, our website is running thanks to our ads. Please consider supporting us and the translators by disabling your ad blocker", text)
-    text = remove("Alternatively, you could also subscribe for only $3 a month at Disabled for now. With the subscription you will enjoy an ad-free experience, and also have access to all the VIP chapters.", text)
+
+
+    text = remove("Translated by NEET", text)
+    text = remove("Edited by (Ilesyt)?(, )?(Oberon)?", text)
+    text = remove("Dear reader, our website is running thanks to our ads.", text)
+    text = remove("Please consider supporting us and the translators by disabling your ad blocker", text)
+    text = remove("Currently, 55% of our readers have turned their ad-block on.", text)
+    text = remove("Alternatively, (if you dont like ads, )?you could also subscribe for only \$3 a month at Disabled for now.", text)
+    text = remove("Alternatively, (if you dont like ads, )?you could also subscribe for only \$3 for 30 days.", text)
+    text = remove("With the subscription you will enjoy an ad-free experience, and also have access to all the VIP chapters.", text)
     text = remove("libread.com", text)
     text = remove_after(r'Written( and Directed)? by Avans, Published( exclusively)? by W\.e\.b\.n\.o\.v\.e\.l', text)
     text = remove_after(r'For discussion Join Avans Discord server', text)

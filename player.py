@@ -96,8 +96,8 @@ def update_t(book,speed,dur,ch,tui,once=False):
         tui.place_text(progress_bar(t,dur), row=1, height=1)
         text, n_block = get_block(t, block_times, book, ch, block)
         if first or n_block != block:
-            tui.clear_box(row=2, height=10)
-            tui.place_text(text.replace('\n', ' '), row=2, height=10)
+            tui.clear_box(row=2)
+            tui.place_text(text.replace('\n', ' '), row=2,width=60)
             first = False 
             block = n_block
         tui.flush()
@@ -124,7 +124,7 @@ def get_pch_fp(book):
     return f"output/{book}/.working/pch.txt"
 
 def get_header(book, ch, speed):
-    return f"playing {book} ch: {ch} ({speed}x)\n"
+    return f"playing {book} ch: {ch} ({speed}x)"
 
 def play_ch(speed,book,tui):
     ch = 0
@@ -139,8 +139,6 @@ def play_ch(speed,book,tui):
     with safer.open(get_t_fp(book),"w") as tf:
         tf.write(str(t))
     mp3_fp = get_mp3_fp(book, ch)
-    tui.clear()
-    tui.place_text(get_header(book,ch,speed), row=0, height=1)
     w = 1 
     while not os.path.isfile(mp3_fp):
         tui.clear()
@@ -151,6 +149,8 @@ def play_ch(speed,book,tui):
             continue
         if x == 't':
             return 1 
+    tui.clear()
+    tui.place_text(get_header(book,ch,speed), row=0, height=1)
     dur = get_duration(mp3_fp) 
     ui_p = Process(target=update_t, args=(book,speed,dur,ch,tui))
     ui_p.start()
@@ -218,7 +218,7 @@ def play_ch(speed,book,tui):
                 tf.write(str(t))
             tui.place_text(progress_bar(t,dur), row=1, height=1)
             text, b = get_block(t, block_times, book, ch, 0)
-            tui.place_text(text.replace('\n', ' '), row=2, height=10)
+            tui.place_text(text.replace('\n', ' '), row=2, width=60)
             if unpaused:
                 player_p = start_mp3(mp3_fp, speed, t)
                 ui_p = Process(target=update_t, args=(book,speed,dur,ch,tui))
