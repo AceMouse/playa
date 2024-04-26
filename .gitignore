@@ -3,7 +3,7 @@ output
 src 
 nvidia-*
 .gitignore
-lib*
+libnvidia*
 pkg
 PKGBUILD
 *_alias

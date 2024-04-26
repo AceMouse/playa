@@ -4,6 +4,7 @@ import os
 import sys 
 from pytimedinput import timedKey, timedKeyOrNumber
 import safer
+from lib.pytui.pytui import Tui
 pollRate = 0.1
 
 def _print(x):
@@ -80,21 +81,28 @@ def get_block(t, block_times, book, ch, prev_block=0):
     with safer.open(b_fp, "r") as f:
         return (str(f.read()), block)
 
-def update_t(book,speed,dur,ch,once=False):
+def update_t(book,speed,dur,ch,tui,once=False):
     t = 0
     dt = 1/speed 
     block_times = get_block_times(book, ch)
     block = 0 
+    first = True
     while True:
         with safer.open(get_t_fp(book),"r") as tf:
             t = float(tf.read())
         with safer.open(get_t_fp(book),"w") as tf:
             tf.write(str(t+speed*dt))
+        tui.set_buffered(True)
+        tui.place_text(progress_bar(t,dur), row=1, height=1)
+        text, n_block = get_block(t, block_times, book, ch, block)
+        if first or n_block != block:
+            tui.clear_box(row=2, height=10)
+            tui.place_text(text.replace('\n', ' '), row=2, height=10)
+            first = False 
+            block = n_block
+        tui.flush()
+        tui.set_buffered(False)
 
-        clear(lines=2)
-        print(progress_bar(t,dur))
-        text, block = get_block(t, block_times, book, ch, block)
-        print(text)
         if once:
             break
         time.sleep(dt)
@@ -118,7 +126,7 @@ def get_pch_fp(book):
 def get_header(book, ch, speed):
     return f"playing {book} ch: {ch} ({speed}x)\n"
 
-def play_ch(speed,book):
+def play_ch(speed,book,tui):
     ch = 0
     t = 0
     with safer.open(get_pch_fp(book),"r") as chf:
@@ -131,12 +139,12 @@ def play_ch(speed,book):
     with safer.open(get_t_fp(book),"w") as tf:
         tf.write(str(t))
     mp3_fp = get_mp3_fp(book, ch)
-    clear()
-    print(get_header(book,ch,speed))
+    tui.clear()
+    tui.place_text(get_header(book,ch,speed), row=0, height=1)
     w = 1 
     while not os.path.isfile(mp3_fp):
-        clear()
-        print(f"{mp3_fp} not found, retrying in 10s ({w})")
+        tui.clear()
+        tui.place_text(f"{mp3_fp} not found, retrying in 10s ({w})", row=0, height=1)
         w += 1
         x, timedOut = timedKey(timeout=10, resetOnInput = False, allowCharacters=f"t", pollRate = pollRate)
         if timedOut:
@@ -144,7 +152,7 @@ def play_ch(speed,book):
         if x == 't':
             return 1 
     dur = get_duration(mp3_fp) 
-    ui_p = Process(target=update_t, args=(book,speed,dur,ch))
+    ui_p = Process(target=update_t, args=(book,speed,dur,ch,tui))
     ui_p.start()
     player_p = start_mp3(mp3_fp, speed, t)
     unpaused = True
@@ -169,7 +177,7 @@ def play_ch(speed,book):
             unpaused = not unpaused
             if unpaused:
                 player_p = start_mp3(mp3_fp, speed, t)
-                ui_p = Process(target=update_t, args=(book,speed,dur,ch))
+                ui_p = Process(target=update_t, args=(book,speed,dur,ch,tui))
                 ui_p.start()
             else:
                 player_p.kill()
@@ -192,8 +200,7 @@ def play_ch(speed,book):
                         mp3_fp = get_mp3_fp(book, ch)
                         dur = get_duration(mp3_fp)
                         t += dur 
-                        clear_line(1)
-                        print(get_header(book, ch, speed))
+                        tui.place_text(get_header(book,ch,speed), row=0, height=1)
                         with safer.open(get_pch_fp(book),"w") as chf:
                             chf.write(str(ch))
                     t = max(t-15,0)
@@ -204,19 +211,17 @@ def play_ch(speed,book):
                         mp3_fp = get_mp3_fp(book, ch)
                         t -= dur 
                         dur = get_duration(mp3_fp)
-                        clear_line(1)
-                        print(get_header(book,ch, speed))
+                        tui.place_text(get_header(book,ch,speed), row=0, height=1)
                         with safer.open(get_pch_fp(book),"w") as chf:
                             chf.write(str(ch))
                     t = min(t+15,dur)
                 tf.write(str(t))
-            clear(lines=2)
-            print(progress_bar(t,dur))
-            text, b = get_block(t, block_times, book, ch)
-            print(text)
+            tui.place_text(progress_bar(t,dur), row=1, height=1)
+            text, b = get_block(t, block_times, book, ch, 0)
+            tui.place_text(text.replace('\n', ' '), row=2, height=10)
             if unpaused:
                 player_p = start_mp3(mp3_fp, speed, t)
-                ui_p = Process(target=update_t, args=(book,speed,dur,ch))
+                ui_p = Process(target=update_t, args=(book,speed,dur,ch,tui))
                 ui_p.start()
         if(x in f"{KEY_UP}{KEY_DOWN}" and prec == PREC) or x in "ws":
             player_p.kill()
@@ -229,11 +234,10 @@ def play_ch(speed,book):
                 speed = speed+0.25
             with safer.open(dsfp, "w") as dsf:
                 dsf.write(str(speed))
-            clear_line(1)
-            print(get_header(book,ch,speed))
+            tui.place_text(get_header(book,ch,speed), row=0, height=1)
             if unpaused:
                 player_p = start_mp3(mp3_fp, speed, t)
-                ui_p = Process(target=update_t, args=(book,speed,dur,ch))
+                ui_p = Process(target=update_t, args=(book,speed,dur,ch,tui))
                 ui_p.start()
 
     player_p.wait()
@@ -246,7 +250,7 @@ def play_ch(speed,book):
 
 dbfp = "output/.def_book"
 dsfp = "output/.def_speed"
-def get_speed():
+def get_speed(tui):
     default_speed_existed = True
     if not os.path.isfile(dsfp):
         default_speed_existed = False 
@@ -256,8 +260,10 @@ def get_speed():
         default_speed = float(dsf.read())
     speed = default_speed
     if not default_speed_existed:
-        i, _ = timedKeyOrNumber(f"Choose a speed ({default_speed}):\n", timeout = -1, allowCharacters = "t", allowNegative = False, pollRate = pollRate)
-        clear()
+        tui.clear()
+        tui.place_text(f"Choose a speed ({default_speed}):\n",row=0, height=1)
+        i, _ = timedKeyOrNumber(timeout = -1, allowCharacters = "t", allowNegative = False, pollRate = pollRate)
+        tui.clear()
         if i == 't':
             return get_book()
         if i != None:
@@ -266,8 +272,8 @@ def get_speed():
             dsf.write(str(speed))
     return speed
 
-def get_book():
-    clear()
+def get_book(tui):
+    tui.clear()
     book = "" 
     books = []
     for dir in os.listdir("output"):
@@ -283,19 +289,28 @@ def get_book():
     with safer.open(dbfp, "r") as dbf:
         default_book = str(dbf.read())
     book = default_book
+    tui.set_buffered(True)
+    tui.clear()
+    tui.place_text(f"Choose a book (1-{len(books)}):", height=1, row=0)
+    for i,b in enumerate(books):
+        tui.place_text(f"{i+1:>2} {b}", height=1, col=2, row=i+1)
+    tui.flush()
+    tui.set_buffered(False)
     arrow_number = books.index(default_book)
     while True:
-        clear()
-        print(f"Choose a book (1-{len(books)}):")
-        print('\n'.join([f"{'->'*(i == arrow_number):<2}{i+1:>2} {b}" for i,b in enumerate(books)]))
-        i, _ = timedKeyOrNumber("", timeout = -1, allowCharacters = f"tws", allowNegative = False, allowFloat = False, pollRate = pollRate)
+        tui.place_text("->", row=arrow_number+1, width = 2, height=1)
+        i, _ = timedKeyOrNumber(timeout = -1, allowCharacters = f"tws", allowNegative = False, allowFloat = False, pollRate = pollRate)
         if i == 't':
+            tui.clear()
+            tui.hide_cursor(False)
             quit(0)
         if i == "w":
+            tui.place_text("", row=arrow_number+1, width = 2, height=1)
             arrow_number = max(0, arrow_number-1)
             book = books[arrow_number]
             continue
         if i == "s":
+            tui.place_text("", row=arrow_number+1, width = 2, height=1)
             arrow_number = min(len(books)-1, arrow_number+1)
             book = books[arrow_number]
             continue
@@ -306,28 +321,18 @@ def get_book():
         with safer.open(dbfp, "w") as dbf:
             dbf.write(book)
         break
-    clear()
+    tui.clear()
     return book
 
 def play():
     os.nice(19)
-    book = get_book()
+    tui = Tui()
+    book = get_book(tui)
     while True:
-        speed = get_speed()
-        if play_ch(speed, book) == 1:
-            book = get_book()
+        speed = get_speed(tui)
+        if play_ch(speed, book,tui) == 1:
+            book = get_book(tui)
 
-def clear(lines=1):
-    if not debug: 
-        print(f"\033[{lines};1H\033[0J", end="", flush=True)
-
-def clear_line(line):
-    if not debug: 
-        print(f"\033[{line};1H\033[2K", end="")
-
-def clear_input_line():
-    if not debug: 
-        print(f"\033[2K", end="")
 PREC = '\033['
 KEY_UP    = 'A'
 KEY_LEFT  = 'D'

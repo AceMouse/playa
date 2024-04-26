@@ -1,0 +1,3 @@
+[submodule "lib/pytui"]
+	path = lib/pytui
+	url = git@github.com:AceMouse/pytui.git

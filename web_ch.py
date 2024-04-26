@@ -10,10 +10,12 @@ from cleantext import clean
 import re
 import urllib.parse
 from multiprocessing import Pool
+from lib.pytui.pytui import Tui
 
 print_text = False 
 debug = False
 print_progress = True
+
 def get_dests():
     dests = []
     for dir in os.listdir("output"):
@@ -42,7 +44,7 @@ uas = [
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.1"
         ]
 import random
-def worker(dest):
+def worker(dest, tui):
     firefox_options = Options()
     my_user_agent = uas[random.randint(0, len(uas)-1)]
     firefox_options.add_argument(f"--user-agent={my_user_agent}")
@@ -82,13 +84,13 @@ def worker(dest):
                os.makedirs(ch_dir)
 
             if print_progress:
-                print(f"getting: {dest}/{ch}", flush=True)
+                tui.place_text(f"getting: {dest}/{ch}", height=1)
             driver.get(f'about:reader?url={url}')
             time.sleep(2)
             full_txt_fp = f"{txt_dir}/ch{ch:04}.txt"
             text = driver.find_element(By.CLASS_NAME,"moz-reader-content").text
             if len(text) < 100:
-                print(f"could not fetch\n text: {text}")
+                tui.place_text(f"could not fetch, text: {text}", height=1)
                 quit(0)
             with open(full_txt_fp,"w") as f:
                 f.write(text)
@@ -96,19 +98,19 @@ def worker(dest):
             text = clean_text(text)
             if 'novelfull' in url:
                 text = novel_full_clean(text)
-            if 'libread' in url:
+            if 'libread' in url or 'freewebnovel.noveleast' in url:
                 text = libread_clean(text)
 
             sentances = text.split('\n')
             if not re.search('chapter', sentances[0], re.IGNORECASE):
                 sentances = [f"chapter {ch}"] + sentances
 
-            blocks = ["\n".join(sentances[i:i+2]) for i in range(0, len(sentances), 2)]
+            blocks = [" ".join(sentances[i:i+2]).strip() for i in range(0, len(sentances), 2)]
             text = "\n".join(blocks)
             
 
             if print_text:
-                print(text, flush=True)
+                tui.place_text(text)
             b = 0 
             for block in blocks:
                 block = block.strip()
@@ -122,15 +124,17 @@ def worker(dest):
             while True:
                 driver.get(url)
                 time.sleep(0.5)
+                url = driver.current_url
                 ActionChains(driver).key_down(Keys.ARROW_RIGHT).key_up(Keys.ARROW_RIGHT).perform()
                 time.sleep(0.5)
-                if len(driver.current_url.split('/')) != len(url.split('/')):
+                c_url = driver.current_url
+                if len(c_url.split('/')) != len(url.split('/')):
                     if print_progress:
-                            print(f"No more accessable chapter texts {dest}", flush=True)
+                        tui.place_text(f"No more accessable chapter texts {dest}", height=1)
                     done = True
                     break
-                new = url != driver.current_url
-                url = driver.current_url
+                new = url != c_url
+                url = c_url
                 if new:
                     with open(url_fp,"w") as urlf:
                         urlf.write(str(url))
@@ -210,7 +214,9 @@ def novel_full_clean(text):
     return text 
 
 if __name__ == '__main__':
+    tui = Tui()
+    tui.clear()
     dests = get_dests()
     for d in dests:
         time.sleep(10)
-        worker(d)
+        worker(d,tui)

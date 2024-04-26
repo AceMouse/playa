@@ -5,6 +5,8 @@ import time
 import os
 import signal
 import re
+import sys 
+from lib.pytui.pytui import Tui
 
 debug = False 
 print_text = False 
@@ -15,13 +17,15 @@ def signal_handler(sig, frame):
         frame.f_locals['driver'].quit()
     elif 'driver' in frame.f_globals:
         frame.f_globals['driver'].quit()
-    clear_after_line(line=2+lines_offset)
-    print("Interrupted")
-    print("Chapters ready for reading:")
+    tui = Tui(buffered = True, hide_cursor = False) 
+    tui.clear_box(row=2+lines_offset)
+    tui.place_text("Interrupted",row = 2+lines_offset, height=1)
+    tui.place_text("Chapters ready for reading:",row = 3+lines_offset, height=1)
     x = get_chapters_left()
     l = len(str(max(x, key=lambda item: item[0])[0]))
-    for c,_,_,dir in x:
-        print(f"  {c:>{l}}: {dir} ")
+    for i, (c,_,_,dir) in enumerate(x):
+        tui.place_text(f"{c:>{l}}: {dir}", col = 2, row=lines_offset+4+i, height=1)
+    tui.flush()
     exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
@@ -59,13 +63,18 @@ def run(cmd):
 
 def show_profile():
     if show_profiling:
-        clear_after_line(line=3+lines_offset)
+        tui = Tui(buffered=True)
+        tui.clear_box(row=lines_offset+2)
+        l = 2
         for k,v in profile.items():
             s = v["success_time"]+v["fault_time"]
             wps = v["success_words"]/s if s != 0 else 0 
-            print(f'{k}: {wps:.2f} wps')
+            tui.place_text(f'{k}: {wps:.2f} wps', row=lines_offset+l, height=1)
+            l += 1
             for k, v in v.items():
-                print(f"\t{k}: {v}")
+                tui.place_text(f"{k}: {v}", row=lines_offset+l, col = 4, height=1)
+                l += 1
+        tui.flush()
 
 
 def tts(text, cuda, fp, model):
@@ -102,9 +111,9 @@ def synth(blocks,model,folder,pref="b",split=True):
        _print(f"made folder {folder}")
     cuda = torch.cuda.is_available()
     show_profile()
+    tui = Tui()
     for b,block in enumerate(blocks):
-        clear_line(line=2+lines_offset)
-        print(f"{b:02}/{len(blocks)-1}")
+        tui.place_text(f"{b:02}/{len(blocks)-1}", row=lines_offset+1, height=1)
         fp = f"{folder}/{pref}{b:04}.wav"
         if (os.path.isfile(fp)):
             fps += [fp]
@@ -123,7 +132,7 @@ def synth(blocks,model,folder,pref="b",split=True):
             fps += [fp]
             continue
         if split:
-            splits = block.split('.')
+            splits = [s.strip() for s in block.split('.')]
             if len(splits) > 1:
                 _print("trying split:")
                 synth(splits,b,model,pref=f"{pref}{b:04}s",split=False)
@@ -145,9 +154,12 @@ def get_duration(wav_fp):
     s = subprocess.run(**d).stdout.decode()
     return float(s)
 
-def merge(working,dest,fps, ch):
+def merge(working,dest,fps, ch, tui):
+    global lines_offset
     ch_fp = f"{working}/ch"
-    _print(f"merging: {ch_fp}")
+    if debug:
+        tui.place_text(f"merging: {ch_fp}", row = lines_offset + 1, height=1)
+        lines_offset += 2
     merge_fp = f"{ch_fp}/merge_order.txt"
     with open(f"{working}/txt/ch{ch:04}/timestamps.txt", "w") as ts:
         with open(merge_fp,"w") as f:
@@ -179,7 +191,7 @@ tts_models = [
     "tts_models/en/blizzard2013/capacitron-t2-c150_v2",
     "tts_models/en/multi-dataset/tortoise-v2"
 ]
-def get_dest():
+def get_dest(tui):
     m = 100000 
     md = ""
     for dir in os.listdir("output"):
@@ -199,38 +211,45 @@ def get_dest():
                 m = sch-pch 
                 md = dir 
     if m == 100000:
-        clear_after_line(line=1+lines_offset)
-        print("Nothing to synth")
-        print("Chapters ready for reading:")
+        tui.set_buffered(True)
+        tui.clear_box(row=lines_offset+1)
+        tui.place_text("Nothing to synth", row = lines_offset+1, height=1)
+        tui.place_text("Chapters ready for reading:", row = lines_offset+2, height=1)
         x = get_chapters_left()
         l = len(str(max(x, key=lambda item: item[0])[0]))
-        for c,_,_,dir in x:
-            print(f"  {c:>{l}}: {dir} ")
+        for i, (c,_,_,dir) in enumerate(x):
+            tui.place_text(f"{c:>{l}}: {dir}", col = 2, row=lines_offset+3+i, height=1)
+        tui.flush()
+        tui.set_buffered(False)
+        tui.hide_cursor(False)
         exit(0)
     return md
     
 def get_blocks(dest, ch):
     ch_fp = f"output/{dest}/.working/txt/ch{ch:04}"
-    print(ch_fp)
     if not os.path.isdir(ch_fp):
-        print("no blocks")
         return []
     blocks = []
     dirs = os.listdir(ch_fp)
     dirs = sorted(dirs)
-    print(dirs)
     for dir in dirs:
         if re.search(r"b\d{4}.txt", dir):
-            with open(f"{ch_fp}/{dir}", "r") as b:
-                blocks += [str(b.read())]
-    print("blocks: ")
-    [print(b) for b in blocks]
+            dir = f"{ch_fp}/{dir}"
+            with open(dir, "r") as b:
+                block = str(b.read()).strip()
+                if block != "":
+                    blocks += [block]
+                else:
+                    os.remove(dir)
     return blocks
 
 def main():
     global lines_offset
-    clear_after_line()
-    dest = get_dest()
+    tui = Tui()
+    if len(sys.argv)>1:
+        lines_offset = int(sys.argv[1])
+    tui.clear_box(row=lines_offset)
+    dest = get_dest(tui)
     folder = f"output/{dest}"
     working = f"{folder}/.working"
     ch_dir = f"{working}/ch"
@@ -246,7 +265,7 @@ def main():
        os.makedirs(ch_dir)
     ch = 0 
     while True:
-        dest = get_dest()
+        dest = get_dest(tui)
         folder = f"output/{dest}"
         working = f"{folder}/.working"
         ch_dir = f"{working}/ch"
@@ -269,13 +288,13 @@ def main():
         if not os.path.isfile(mp3_fp):
             blocks = get_blocks(dest, ch) 
             model = tts_models[0]
-            clear_after_line(line=1+lines_offset)
-            print(f"synthing: {dest}/{ch}")
+            tui.place_text(f"synthing: {dest}/{ch}",row = lines_offset, height=1)
             if len(blocks) < 2:
-                print("no blocks")
+                tui.place_text("no blocks",row=lines_offset+1, height=1)
+                tui.hide_cursor(False)
                 quit(0)
             fps = synth(blocks,model,ch_dir,pref=f"{ch:04}b")
-            merge(working, mp3_fp, fps, ch)
+            merge(working, mp3_fp, fps, ch, tui)
             rm_content(ch_dir)
 
         with open(sch_fp,"w") as schf:
@@ -285,15 +304,6 @@ import shutil
 def rm_content(folder):
     shutil.rmtree(folder)
 
-def clear_line(line=1):
-    if not debug: 
-        print(f"\033[{line};1H\033[0K", end="", flush=True)
-    
-def clear_after_line(line=1):
-    if not debug: 
-        print(f"\033[{line};1H\033[0J", end="", flush=True)
-LINE_UP = '' if debug else '\033[1A' 
-LINE_CLEAR = '' if debug else '\x1b[2K'
 lines_offset=0
 main()
 
