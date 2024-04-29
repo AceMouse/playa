@@ -194,22 +194,25 @@ tts_models = [
 def get_dest(tui):
     m = 100000 
     md = ""
+    m_left = 0
     for dir in os.listdir("output"):
         dir_fp = f"output/{dir}/.working"
         if not os.path.isdir(dir_fp):
             continue
-        sch = 0 
         with open(f"{dir_fp}/sch.txt","r") as schf:
             sch = int(schf.read())
-        with open(f"{dir_fp}/tch.txt","r") as tchf:
-            tch = int(tchf.read())
-            if tch-sch <= -1:
-                continue
-        with open(f"{dir_fp}/pch.txt","r") as pchf:
-            pch = int(pchf.read())
-            if sch-pch<m:
-                m = sch-pch 
-                md = dir 
+            left = 0
+            with open(f"{dir_fp}/tch.txt","r") as tchf:
+                tch = int(tchf.read())
+                left = tch-sch 
+                if left <= -1:
+                    continue
+            with open(f"{dir_fp}/pch.txt","r") as pchf:
+                pch = int(pchf.read())
+                if sch-pch<m:
+                    m = sch-pch 
+                    m_left = left 
+                    md = dir 
     if m == 100000:
         tui.set_buffered(True)
         tui.clear_box(row=lines_offset+1)
@@ -223,7 +226,7 @@ def get_dest(tui):
         tui.set_buffered(False)
         tui.hide_cursor(False)
         exit(0)
-    return md
+    return md, m_left <= 0
     
 def get_blocks(dest, ch):
     ch_fp = f"output/{dest}/.working/txt/ch{ch:04}"
@@ -249,7 +252,7 @@ def main():
     if len(sys.argv)>1:
         lines_offset = int(sys.argv[1])
     tui.clear_box(row=lines_offset)
-    dest = get_dest(tui)
+    dest, _= get_dest(tui)
     folder = f"output/{dest}"
     working = f"{folder}/.working"
     ch_dir = f"{working}/ch"
@@ -265,7 +268,7 @@ def main():
        os.makedirs(ch_dir)
     ch = 0 
     while True:
-        dest = get_dest(tui)
+        dest, last = get_dest(tui)
         folder = f"output/{dest}"
         working = f"{folder}/.working"
         ch_dir = f"{working}/ch"
@@ -299,6 +302,9 @@ def main():
 
         with open(sch_fp,"w") as schf:
             schf.write(str(ch+1))
+        if last:
+            tui.place_text(f"done synthing: {dest}",row = lines_offset, height=1)
+            lines_offset += 1  
 
 import shutil
 def rm_content(folder):

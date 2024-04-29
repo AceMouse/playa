@@ -299,6 +299,7 @@ def get_book(tui):
     arrow_number = books.index(default_book)
     while True:
         tui.place_text("->", row=arrow_number+1, width = 2, height=1)
+        tui.place_cursor(row=len(books)+1)
         i, _ = timedKeyOrNumber(timeout = -1, allowCharacters = f"tws", allowNegative = False, allowFloat = False, pollRate = pollRate)
         if i == 't':
             tui.clear()

@@ -56,11 +56,11 @@ def worker(dest, tui):
         working = f"{folder}/.working"
         txt_dir = f"{working}/txt"
         if not os.path.isdir(folder):
-           os.makedirs(folder)
+            os.makedirs(folder)
         if not os.path.isdir(working):
-           os.makedirs(working)
+            os.makedirs(working)
         if not os.path.isdir(txt_dir):
-           os.makedirs(txt_dir)
+            os.makedirs(txt_dir)
         done = False
         while not done:
             url_fp = f"{working}/url.txt"
@@ -81,10 +81,11 @@ def worker(dest, tui):
 
             ch_dir = f"{txt_dir}/ch{ch:04}"
             if not os.path.isdir(ch_dir):
-               os.makedirs(ch_dir)
+                os.makedirs(ch_dir)
             else:
                 for dir in os.listdir(ch_dir):
-                    os.remove(f"{ch_dir}/{dir}")
+                    if re.search(r"b\d{4}.txt", dir):
+                        os.remove(f"{ch_dir}/{dir}")
 
             if print_progress:
                 tui.place_text(f"getting: {dest}/{ch}", height=1)
@@ -110,7 +111,7 @@ def worker(dest, tui):
 
             blocks = [" ".join(sentances[i:i+2]).strip() for i in range(0, len(sentances), 2)]
             text = "\n".join(blocks)
-            
+
 
             if print_text:
                 tui.place_text(text)

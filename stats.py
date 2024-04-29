@@ -23,7 +23,8 @@ def get_current_time():
         if not os.path.isdir(dir_fp):
             continue
         with open(f"{dir_fp}/t.txt","r") as tf:
-            t = float(tf.read())
+            z = tf.read()
+            t = 0 if z == '' else float(z)
             with open(f"{dir_fp}/pch.txt","r") as pchf:
                 pch = int(pchf.read())
                 ret += [(pch,t,complete,dir)]
