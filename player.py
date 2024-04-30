@@ -38,6 +38,7 @@ def signal_handler(sig, frame):
         frame.f_locals['player_p'].kill()
     elif 'player_p' in frame.f_globals:
         frame.f_globals['player_p'].kill()
+    Tui(hide_cursor=False)
     sys.exit(sig)
 
 signal.signal(signal.SIGINT, signal_handler)

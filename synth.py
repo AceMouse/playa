@@ -13,13 +13,9 @@ print_text = False
 show_profiling = True
 
 def signal_handler(sig, frame):
-    if 'driver' in frame.f_locals:
-        frame.f_locals['driver'].quit()
-    elif 'driver' in frame.f_globals:
-        frame.f_globals['driver'].quit()
     tui = Tui(buffered = True, hide_cursor = False) 
     tui.clear_box(row=2+lines_offset)
-    tui.place_text("Interrupted",row = 2+lines_offset, height=1)
+    tui.place_text("Synth interrupted",row = 2+lines_offset, height=1)
     tui.place_text("Chapters ready for reading:",row = 3+lines_offset, height=1)
     x = get_chapters_left()
     l = len(str(max(x, key=lambda item: item[0])[0]))
@@ -222,9 +218,8 @@ def get_dest(tui):
         l = len(str(max(x, key=lambda item: item[0])[0]))
         for i, (c,_,_,dir) in enumerate(x):
             tui.place_text(f"{c:>{l}}: {dir}", col = 2, row=lines_offset+3+i, height=1)
-        tui.flush()
-        tui.set_buffered(False)
         tui.hide_cursor(False)
+        tui.flush()
         exit(0)
     return md, m_left <= 0
     

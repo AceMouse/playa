@@ -11,11 +11,22 @@ import re
 import urllib.parse
 from multiprocessing import Pool
 from lib.pytui.pytui import Tui
+import signal
 
 print_text = False 
 debug = False
 print_progress = True
 
+def signal_handler(sig, frame):
+    if 'driver' in frame.f_locals:
+        frame.f_locals['driver'].quit()
+    elif 'driver' in frame.f_globals:
+        frame.f_globals['driver'].quit()
+    tui = Tui(hide_cursor = False) 
+    tui.place_text("Web getter Interrupted", height=1)
+    exit(0)
+
+signal.signal(signal.SIGINT, signal_handler)
 def get_dests():
     dests = []
     for dir in os.listdir("output"):
@@ -229,8 +240,9 @@ def novel_full_clean(text):
 
 if __name__ == '__main__':
     tui = Tui()
-    tui.clear()
+    tui.clear_box(height=1)
     dests = get_dests()
     for d in dests:
         time.sleep(10)
         worker(d,tui)
+    tui.place_text(f"Done getting!", height=1)
