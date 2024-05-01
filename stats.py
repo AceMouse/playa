@@ -12,7 +12,7 @@ def get_chapters_left():
             sch = int(schf.read())
             with open(f"{dir_fp}/pch.txt","r") as pchf:
                 pch = int(pchf.read())
-                ret += [(sch-pch+1,sch,complete,dir)]
+                ret += [(sch-pch,sch,complete,dir)]
     return ret 
 
 def get_current_time():
