@@ -1,5 +1,6 @@
-pytimedinput
 clean-text
-keyboard
 regex
 selenium
+safer
+torch
+tts
