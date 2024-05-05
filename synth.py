@@ -187,7 +187,7 @@ tts_models = [
     "tts_models/en/blizzard2013/capacitron-t2-c150_v2",
     "tts_models/en/multi-dataset/tortoise-v2"
 ]
-def get_dest(tui):
+def get_dest(tui, retries=0):
     m = 100000 
     md = ""
     m_left = 0
@@ -209,7 +209,11 @@ def get_dest(tui):
                     m = sch-pch 
                     m_left = left 
                     md = dir 
+
     if m == 100000:
+        if retries < 10:
+            time.sleep(10)
+            return get_dest(tui, retries=retries+1)
         tui.set_buffered(True)
         tui.clear_box(row=lines_offset+1)
         tui.place_text("Nothing to synth", row = lines_offset+1, height=1)
