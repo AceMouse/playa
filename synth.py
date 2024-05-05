@@ -266,6 +266,7 @@ def main():
     if not os.path.isdir(ch_dir):
        os.makedirs(ch_dir)
     ch = 0 
+    model = tts_models[0]
     while True:
         dest, last = get_dest(tui)
         folder = f"output/{dest}"
@@ -289,7 +290,6 @@ def main():
         mp3_fp = f"{folder}/ch{ch:04}.mp3"
         if not os.path.isfile(mp3_fp):
             blocks = get_blocks(dest, ch) 
-            model = tts_models[0]
             tui.place_text(f"synthing: {dest}/{ch}",row = lines_offset, height=1)
             if len(blocks) < 2:
                 tui.place_text("no blocks",row=lines_offset+1, height=1)
