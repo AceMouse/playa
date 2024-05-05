@@ -297,10 +297,7 @@ def get_book(tui):
         tui.place_text(f"{i+1:>2} {b}", height=1, col=2, row=i+1)
     tui.flush()
     tui.set_buffered(False)
-    if default_book in books:
-        arrow_number = books.index(default_book)
-    else:
-        arrow_number = 1
+    arrow_number = books.index(default_book) if default_book in books 0
     while True:
         tui.place_text("->", row=arrow_number+1, width = 2, height=1)
         tui.place_cursor(row=len(books)+1)
