@@ -56,13 +56,18 @@ def run(cmd):
             return p.returncode
         except TypeError:
             time.sleep(2)
-
+cuda = False
 def show_profile():
+    global cuda 
     if show_profiling:
         tui = Tui(buffered=True)
         tui.clear_box(row=lines_offset+2)
         l = 2
         for k,v in profile.items():
+            if not cuda and k == "gpu":
+                tui.place_text(f'{k}: CUDA NOT FOUND', row=lines_offset+l, height=1)
+                l += 1
+                continue
             s = v["success_time"]+v["fault_time"]
             wps = v["success_words"]/s if s != 0 else 0 
             tui.place_text(f'{k}: {wps:.2f} wps', row=lines_offset+l, height=1)
@@ -101,6 +106,7 @@ def espeak(text, fp):
 
 
 def synth(blocks,model,folder,pref="b",split=True):
+    global cuda
     fps = []
     if not os.path.exists(folder):
        os.makedirs(folder)
@@ -188,6 +194,18 @@ tts_models = [
     "tts_models/en/multi-dataset/tortoise-v2"
 ]
 def get_dest(tui, retries=0):
+    if retries >= 3:
+        tui.set_buffered(True)
+        tui.clear_box(row=lines_offset+1)
+        tui.place_text("Nothing to synth", row = lines_offset+1, height=1)
+        tui.place_text("Chapters ready for reading:", row = lines_offset+2, height=1)
+        x = get_chapters_left()
+        l = len(str(max(x, key=lambda item: item[0])[0]))
+        for i, (c,_,_,dir) in enumerate(x):
+            tui.place_text(f"{c:>{l}}: {dir}", col = 2, row=lines_offset+3+i, height=1)
+        tui.hide_cursor(False)
+        tui.flush()
+        exit(0)
     m = 100000 
     md = ""
     m_left = 0
@@ -211,20 +229,8 @@ def get_dest(tui, retries=0):
                     md = dir 
 
     if m == 100000:
-        if retries < 10:
-            time.sleep(10)
-            return get_dest(tui, retries=retries+1)
-        tui.set_buffered(True)
-        tui.clear_box(row=lines_offset+1)
-        tui.place_text("Nothing to synth", row = lines_offset+1, height=1)
-        tui.place_text("Chapters ready for reading:", row = lines_offset+2, height=1)
-        x = get_chapters_left()
-        l = len(str(max(x, key=lambda item: item[0])[0]))
-        for i, (c,_,_,dir) in enumerate(x):
-            tui.place_text(f"{c:>{l}}: {dir}", col = 2, row=lines_offset+3+i, height=1)
-        tui.hide_cursor(False)
-        tui.flush()
-        exit(0)
+        time.sleep(10)
+        return get_dest(tui, retries=retries+1)
     return md, m_left <= 0
     
 def get_blocks(dest, ch):

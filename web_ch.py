@@ -99,13 +99,13 @@ def worker(dest, tui):
                         os.remove(f"{ch_dir}/{dir}")
 
             if print_progress:
-                tui.place_text(f"getting: {dest}/{ch}", height=1)
+                tui.place_text(f"Getting: {dest}/{ch}", height=1)
             driver.get(f'about:reader?url={url}')
             time.sleep(2)
             full_txt_fp = f"{txt_dir}/ch{ch:04}.txt"
             text = driver.find_element(By.CLASS_NAME,"moz-reader-content").text
             if len(text) < 100:
-                tui.place_text(f"could not fetch, text: {text}", height=1)
+                tui.place_text(f"Could not fetch {dest}/{ch}, text: {text}", height=1)
                 quit(0)
             with open(full_txt_fp,"w") as f:
                 f.write(text)
@@ -237,12 +237,13 @@ def novel_full_clean(text):
     text = remove_after(r'If you find any errors ( Ads popup, ads redirect, broken links, non-standard content, etc.. ), Please let us know < report chapter > so we can fix it as soon as possible',text)
     text = remove_after(r'Tip: You can use left, right, A and D keyboard keys to browse between chapters',text)
     return text 
-
-if __name__ == '__main__':
-    tui = Tui()
+def main(tui=Tui()):
     tui.clear_box(height=1)
     dests = get_dests()
     for d in dests:
         time.sleep(10)
         worker(d,tui)
     tui.place_text(f"Done getting!", height=1)
+
+if __name__ == '__main__':
+    main()
