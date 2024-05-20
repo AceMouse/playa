@@ -129,7 +129,7 @@ def play_ch(speed,book,tui):
     w = 1 
     while not os.path.isfile(mp3_fp):
         tui.clear()
-        tui.place_text(f"{mp3_fp} not found, retrying in 10s ({w})", row=0, height=1)
+        tui.place_text(f"{book}/{ch} not found, retrying... ({w})", row=0, height=1)
         w += 1
         x, timedOut = timedKey(timeout=10, resetOnInput = False, allowCharacters=f"t", pollRate = pollRate)
         if timedOut:
