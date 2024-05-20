@@ -34,7 +34,7 @@ def timedInput(prompt: str = "", timeout: float = 5, resetOnInput: bool = True, 
         return "", False
     return __timedInput(prompt, timeout, resetOnInput, maxLength, allowCharacters, endCharacters, pollRate, eatInput=eatInput)
 
-def timedKeyOrNumber(prompt: str = "", timeout: float = 5, resetOnInput: bool = True, allowCharacters: str = "",allowNegative: bool = True, allowFloat: bool = True, pollRate: float = 0, eatInput: bool = False) -> Tuple[Union[str, int, float, None], bool]:
+def timedKeyOrNumber(prompt: str = "", timeout: float = 5, resetOnInput: bool = True, allowCharacters: str = "",allowNegative: bool = True, allowFloat: bool = True, pollRate: float = 0, eatInput: bool = False, eatKeyInput: bool = False) -> Tuple[Union[str, int, float, None], bool]:
     """Ask the user to press a single key out of an optional list of allowed ones or an integer or float value.
 
     Args:
@@ -60,7 +60,7 @@ def timedKeyOrNumber(prompt: str = "", timeout: float = 5, resetOnInput: bool = 
             extraAllowedCharacters.remove(c) 
     extraAllowedCharactersFinal = "".join(extraAllowedCharacters)
 
-    x, timedOut = __timedInput(prompt, timeout, resetOnInput, maxLength=1, allowCharacters=allowCharacters + extraAllowedCharactersFinal, endCharacters="\x1b\n\r", inputType="single", pollRate = pollRate, newline = False, eatInput = eatInput)
+    x, timedOut = __timedInput(prompt, timeout, resetOnInput, maxLength=1, allowCharacters=allowCharacters + extraAllowedCharactersFinal, endCharacters="\x1b\n\r", inputType="single", pollRate = pollRate, newline = False, eatInput = eatKeyInput)
     if x == "":
         return None, timedOut
     if timedOut or x in allowCharacters: 
@@ -162,6 +162,9 @@ def __timedInput(prompt: str = "", timeout: float = 5, resetOnInput: bool = True
         timedOut = False
         if(len(prompt) > 0):
             print(prompt, end='', flush=True)
+
+        if not eatInput:
+            print(userInput, end='', flush=True)
 
         while(True):
             if(timeout > -1.0 and (time.time() - timeStart) >= timeout):

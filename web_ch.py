@@ -11,22 +11,12 @@ import re
 import urllib.parse
 from multiprocessing import Pool
 from lib.pytui.pytui import Tui
-import signal
 
 print_text = False 
 debug = False
 print_progress = True
 
-def signal_handler(sig, frame):
-    if 'driver' in frame.f_locals:
-        frame.f_locals['driver'].quit()
-    elif 'driver' in frame.f_globals:
-        frame.f_globals['driver'].quit()
-    tui = Tui(hide_cursor = False) 
-    tui.place_text("Web getter Interrupted", height=1)
-    exit(0)
 
-signal.signal(signal.SIGINT, signal_handler)
 def get_dests():
     dests = []
     for dir in os.listdir("output"):
@@ -54,6 +44,7 @@ uas = [
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/102.0.0.0 Safari/537.3",
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.1"
         ]
+
 import random
 def worker(dest, tui):
     firefox_options = Options()

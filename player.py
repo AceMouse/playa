@@ -5,6 +5,8 @@ import sys
 from pytimedinput import timedKey, timedKeyOrNumber
 import safer
 from lib.pytui.pytui import Tui
+from multiprocessing import Process,active_children 
+import signal
 pollRate = 0.1
 
 def _print(x):
@@ -26,22 +28,6 @@ def run(cmd):
     d = {'args': cmd,'capture_output':True} 
     return subprocess.run(**d)
 
-from multiprocessing import Process 
-
-import signal
-def signal_handler(sig, frame):
-    if 'ui_p' in frame.f_locals:
-        frame.f_locals['ui_p'].terminate()
-    elif 'ui_p' in frame.f_globals:
-        frame.f_globals['ui_p'].terminate()
-    if 'player_p' in frame.f_locals:
-        frame.f_locals['player_p'].kill()
-    elif 'player_p' in frame.f_globals:
-        frame.f_globals['player_p'].kill()
-    Tui(hide_cursor=False)
-    sys.exit(sig)
-
-signal.signal(signal.SIGINT, signal_handler)
 
 def format_time(in_sec):
     hr = int(in_sec/(60*60))
@@ -93,7 +79,7 @@ def update_t(book,speed,dur,ch,tui,once=False):
             t = float(tf.read())
         with safer.open(get_t_fp(book),"w") as tf:
             tf.write(str(t+speed*dt))
-        tui.set_buffered(True)
+        tui.buffered=True
         tui.place_text(progress_bar(t,dur), row=1, height=1)
         text, n_block = get_block(t, block_times, book, ch, block)
         if first or n_block != block:
@@ -102,7 +88,7 @@ def update_t(book,speed,dur,ch,tui,once=False):
             first = False 
             block = n_block
         tui.flush()
-        tui.set_buffered(False)
+        tui.buffered = False
 
         if once:
             break
@@ -182,15 +168,15 @@ def play_ch(speed,book,tui):
                 ui_p.start()
             else:
                 player_p.kill()
-                ui_p.terminate()
+                ui_p.kill()
         if x == 't':
             if unpaused:
                 player_p.kill()
-                ui_p.terminate()
+                ui_p.kill()
             return 1 
         if (x in f"{KEY_LEFT}{KEY_RIGHT}" and prec == PREC) or x in "jk":
             player_p.kill()
-            ui_p.terminate()
+            ui_p.kill()
             with safer.open(get_t_fp(book),"r") as tf:
                 t = float(tf.read())
             with safer.open(get_t_fp(book),"w") as tf:
@@ -226,7 +212,7 @@ def play_ch(speed,book,tui):
                 ui_p.start()
         if(x in f"{KEY_UP}{KEY_DOWN}" and prec == PREC) or x in "ws":
             player_p.kill()
-            ui_p.terminate()
+            ui_p.kill()
             with safer.open(get_t_fp(book),"r") as tf:
                 t = float(tf.read())
             if x in f"{KEY_DOWN}s":
@@ -242,7 +228,7 @@ def play_ch(speed,book,tui):
                 ui_p.start()
 
     player_p.wait()
-    ui_p.terminate()
+    ui_p.kill()
     with safer.open(get_t_fp(book),"w") as tf:
         tf.write("0")
     with safer.open(get_pch_fp(book),"w") as chf:
@@ -290,22 +276,18 @@ def get_book(tui):
     with safer.open(dbfp, "r") as dbf:
         default_book = str(dbf.read())
     book = default_book
-    tui.set_buffered(True)
+    tui.buffered=True
     tui.clear()
     tui.place_text(f"Choose a book (1-{len(books)}):", height=1, row=0)
     for i,b in enumerate(books):
         tui.place_text(f"{i+1:>2} {b}", height=1, col=2, row=i+1)
-    tui.flush()
-    tui.set_buffered(False)
+    tui.buffered=False
     arrow_number = books.index(default_book) if default_book in books else 0
     while True:
         tui.place_text("->", row=arrow_number+1, width = 2, height=1)
-        tui.place_cursor(row=len(books)+1)
-        i, _ = timedKeyOrNumber(timeout = -1, allowCharacters = f"tws", allowNegative = False, allowFloat = False, pollRate = pollRate)
+        i, _ = timedKeyOrNumber(timeout = -1, allowCharacters = f"tws", allowNegative = False, allowFloat = False, pollRate = pollRate,eatKeyInput=True)
         if i == 't':
-            tui.clear()
-            tui.hide_cursor(False)
-            quit(0)
+            return None
         if i == "w":
             tui.place_text("", row=arrow_number+1, width = 2, height=1)
             arrow_number = max(0, arrow_number-1)
@@ -326,18 +308,22 @@ def get_book(tui):
     tui.clear()
     return book
 
-def play():
+def main(tui = Tui()):
     os.nice(19)
-    tui = Tui()
     book = get_book(tui)
+    if book is None:
+        return 0
     while True:
         speed = get_speed(tui)
         if play_ch(speed, book,tui) == 1:
             book = get_book(tui)
+            if book is None:
+                return 0
 
 PREC = '\033['
 KEY_UP    = 'A'
 KEY_LEFT  = 'D'
 KEY_DOWN  = 'B'
 KEY_RIGHT = 'C'
-play() 
+if __name__ == "__main__":
+    main() 

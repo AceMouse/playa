@@ -3,28 +3,15 @@ import torch
 import subprocess
 import time 
 import os
-import signal
 import re
 import sys 
 from lib.pytui.pytui import Tui
+
 
 debug = False 
 print_text = False 
 show_profiling = True
 
-def signal_handler(sig, frame):
-    tui = Tui(buffered = True, hide_cursor = False) 
-    tui.clear_box(row=2+lines_offset)
-    tui.place_text("Synth interrupted",row = 2+lines_offset, height=1)
-    tui.place_text("Chapters ready for reading:",row = 3+lines_offset, height=1)
-    x = get_chapters_left()
-    l = len(str(max(x, key=lambda item: item[0])[0]))
-    for i, (c,_,_,dir) in enumerate(x):
-        tui.place_text(f"{c:>{l}}: {dir}", col = 2, row=lines_offset+4+i, height=1)
-    tui.flush()
-    exit(0)
-
-signal.signal(signal.SIGINT, signal_handler)
 def _print(x):
     if debug:
         for _ in range(3):
@@ -57,10 +44,11 @@ def run(cmd):
         except TypeError:
             time.sleep(2)
 cuda = False
-def show_profile():
+def show_profile(tui):
     global cuda 
     if show_profiling:
-        tui = Tui(buffered=True)
+        old_buf = tui.buffered
+        tui.buffered = True
         tui.clear_box(row=lines_offset+2)
         l = 2
         for k,v in profile.items():
@@ -76,9 +64,10 @@ def show_profile():
                 tui.place_text(f"{k}: {v}", row=lines_offset+l, col = 4, height=1)
                 l += 1
         tui.flush()
+        tui.buffered = old_buf
 
 
-def tts(text, cuda, fp, model):
+def tts(text, cuda, fp, model,tui):
     t = time.time()
     res = run([prog_aliases["tts"], "--text", text, "--use_cuda",str(cuda),"--model_name", model,"--out_path",fp])
     t = time.time()-t 
@@ -88,10 +77,10 @@ def tts(text, cuda, fp, model):
     profile[pkey][f"{ppref}_words"] += text.count(' ') +1 
     if res != 0:
         profile[pkey]["faults"] += [(text,res)]
-    show_profile()
+    show_profile(tui)
     return res  
 
-def espeak(text, fp): 
+def espeak(text, fp,tui): 
     t = time.time()
     res = run([prog_aliases["espeak"], text, "-w",fp]) 
     t = time.time()-t 
@@ -101,19 +90,18 @@ def espeak(text, fp):
     profile[pkey][f"{ppref}_words"] += text.count(' ') +1 
     if res != 0:
         profile[pkey]["faults"] += [(text,res)]
-    show_profile()
+    show_profile(tui)
     return res  
 
 
-def synth(blocks,model,folder,pref="b",split=True):
+def synth(blocks,model,folder,tui,pref="b",split=True):
     global cuda
     fps = []
     if not os.path.exists(folder):
        os.makedirs(folder)
        _print(f"made folder {folder}")
     cuda = torch.cuda.is_available()
-    show_profile()
-    tui = Tui()
+    show_profile(tui)
     for b,block in enumerate(blocks):
         tui.place_text(f"{b:02}/{len(blocks)-1}", row=lines_offset+1, height=1)
         fp = f"{folder}/{pref}{b:04}.wav"
@@ -124,12 +112,12 @@ def synth(blocks,model,folder,pref="b",split=True):
         if cuda:
             torch.cuda.empty_cache()
             _print("try on gpu")
-            if tts(block,cuda,fp,model) == 0:
+            if tts(block,cuda,fp,model,tui) == 0:
                 _print("success")
                 fps += [fp]
                 continue
         _print("try on cpu")
-        if tts(block,False,fp,model) == 0:
+        if tts(block,False,fp,model,tui) == 0:
             _print("success")
             fps += [fp]
             continue
@@ -137,10 +125,10 @@ def synth(blocks,model,folder,pref="b",split=True):
             splits = [s.strip() for s in block.split('.')]
             if len(splits) > 1:
                 _print("trying split:")
-                synth(splits,b,model,pref=f"{pref}{b:04}s",split=False)
+                synth(splits,b,model,tui,pref=f"{pref}{b:04}s",split=False)
         else:
             _print("fallback to espeak")
-            espeak(block,fp)
+            espeak(block,fp,tui)
             fps += [fp]
     return fps 
 
@@ -195,7 +183,7 @@ tts_models = [
 ]
 def get_dest(tui, retries=0):
     if retries >= 3:
-        tui.set_buffered(True)
+        tui.buffered = True
         tui.clear_box(row=lines_offset+1)
         tui.place_text("Nothing to synth", row = lines_offset+1, height=1)
         tui.place_text("Chapters ready for reading:", row = lines_offset+2, height=1)
@@ -203,7 +191,6 @@ def get_dest(tui, retries=0):
         l = len(str(max(x, key=lambda item: item[0])[0]))
         for i, (c,_,_,dir) in enumerate(x):
             tui.place_text(f"{c:>{l}}: {dir}", col = 2, row=lines_offset+3+i, height=1)
-        tui.hide_cursor(False)
         tui.flush()
         exit(0)
     m = 100000 
@@ -251,11 +238,8 @@ def get_blocks(dest, ch):
                     os.remove(dir)
     return blocks
 
-def main():
+def main(tui=Tui()):
     global lines_offset
-    tui = Tui()
-    if len(sys.argv)>1:
-        lines_offset = int(sys.argv[1])
     tui.clear_box(row=lines_offset)
     dest, _= get_dest(tui)
     folder = f"output/{dest}"
@@ -299,9 +283,9 @@ def main():
             tui.place_text(f"synthing: {dest}/{ch}",row = lines_offset, height=1)
             if len(blocks) < 2:
                 tui.place_text("no blocks",row=lines_offset+1, height=1)
-                tui.hide_cursor(False)
-                quit(0)
-            fps = synth(blocks,model,ch_dir,pref=f"{ch:04}b")
+                time.sleep(10)
+                continue
+            fps = synth(blocks,model,ch_dir,tui,pref=f"{ch:04}b")
             merge(working, mp3_fp, fps, ch, tui)
             rm_content(ch_dir)
 
@@ -316,7 +300,8 @@ def rm_content(folder):
     shutil.rmtree(folder)
 
 lines_offset=0
-main()
+if __name__ == "__main__":
+    main()
 
 
 
