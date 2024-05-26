@@ -22,7 +22,7 @@ def stats_thread(tui=Tui()):
         for i, (c,_,_,dir) in enumerate(x):
             tui.place_text(f"{c:>{l}}: {dir}", col = 2, row=i+1, height=1)
         tui.flush()
-        time.sleep(10)
+        time.sleep(.5)
 
 
 def main():

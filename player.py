@@ -29,7 +29,11 @@ def progress_bar(t,dur):
     l = 20
     fill = int((t*l)/dur)
     empty = 20-fill 
-    return f"{format_time(t)} [{'#'*fill}{'.'*empty}] {format_time(dur)}"
+    right_vert = u"\u2595"
+    left_vert = u"\u258F"
+    block = u"\u2588"
+    no_block = u"\u2591"
+    return f"{format_time(t)} {right_vert}{block*fill}{no_block*empty}{left_vert} {format_time(dur)}"
 
 def get_ch_txt_fp(book, ch):
     return f"output/{book}/.working/txt/ch{ch:04}"
