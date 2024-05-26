@@ -4,12 +4,9 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
 import time 
-import string
 import os
 from cleantext import clean
 import re
-import urllib.parse
-from multiprocessing import Pool
 from lib.pytui.pytui import Tui
 
 print_text = False 
@@ -20,7 +17,7 @@ print_progress = True
 def get_dests():
     dests = []
     for dir in os.listdir("output"):
-        if os.path.exists(f"output/{dir}/.complete"):
+        if dir == ".logging" or os.path.exists(f"output/{dir}/.complete"):
             continue
         dir_fp = f"output/{dir}"
         if not os.path.isdir(dir_fp):
@@ -45,6 +42,8 @@ uas = [
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Safari/605.1.1"
         ]
 
+os.makedirs("output/.logging", exist_ok=True)
+logfile = open('output/.logging/getter.log', 'w')
 import random
 def worker(dest, tui):
     firefox_options = Options()
@@ -90,14 +89,15 @@ def worker(dest, tui):
                         os.remove(f"{ch_dir}/{dir}")
 
             if print_progress:
-                tui.place_text(f"Getting: {dest}/{ch}", height=1)
+                tui.place_text(f"Getting: {dest}/{ch}")
             driver.get(f'about:reader?url={url}')
             time.sleep(2)
             full_txt_fp = f"{txt_dir}/ch{ch:04}.txt"
             text = driver.find_element(By.CLASS_NAME,"moz-reader-content").text
             if len(text) < 100:
-                tui.place_text(f"Could not fetch {dest}/{ch}, text: {text}", height=1)
-                quit(0)
+                print(f"Could not fetch {dest}/{ch}. Fetched text: {text}", file=logfile)
+                driver.quit()
+                return False
             with open(full_txt_fp,"w") as f:
                 f.write(text)
 
@@ -136,7 +136,7 @@ def worker(dest, tui):
                 c_url = driver.current_url
                 if len(c_url.split('/')) != len(url.split('/')):
                     if print_progress:
-                        tui.place_text(f"No more accessable chapter texts {dest}", height=1)
+                        tui.place_text(f"No more accessable chapter texts {dest}")
                     done = True
                     break
                 new = url != c_url
@@ -152,12 +152,16 @@ def worker(dest, tui):
                     if new_cnt > 5: 
                         done = True
                         break
+        driver.quit()
+        return True
+
     finally:
         driver.quit()
+        return True
 def clean_text(text):
     text = clean(text, lower=False, no_urls=True, replace_with_url="", to_ascii=True)
     text = expand_contractions(remove_emoji(uncensor_text(misc_clean(text))))
-    text = re.sub('If you find any errors \( Ads popup, ads redirect, broken links, non-standard content, etc\. \), Please let us know < report chapter > so we can fix it as soon as possible\.', '', text, flags= re.MULTILINE|re.IGNORECASE)
+    text = re.sub(r'If you find any errors \( Ads popup, ads redirect, broken links, non-standard content, etc\. \), Please let us know < report chapter > so we can fix it as soon as possible\.', '', text, flags= re.MULTILINE|re.IGNORECASE)
     return text
 
 def misc_clean(text):
@@ -178,13 +182,13 @@ def misc_clean(text):
     return text 
 
 def uncensor_text(text):
-    text = re.sub('(m|M) ?\* ?th ?\* ?rf ?\* ?ck ?\* ?r', r'\1otherfucker', text)
-    text = re.sub('(b|B) ?\* ?itch', r'\1itch', text)
-    text = re.sub('(g|G) ?\* ?dd ?\* ?mn ?\* ?d', r'\1oddamned', text)
-    text = re.sub('(g|G) ?\* ?dd ?\* ?mm ?\* ?t', r'\1oddammit', text)
-    text = re.sub('(f|F) ?\* ?ck ?\* ?ng', r'\1ucking', text)
-    text = re.sub('(f|F) ?\* ?ck', r'\1uck', text)
-    text = re.sub('(b|B) ?\* ?llsh ?\* ?t', r'\1ullshit', text)
+    text = re.sub(r'(m|M) ?\* ?th ?\* ?rf ?\* ?ck ?\* ?r', r'\1otherfucker', text)
+    text = re.sub(r'(b|B) ?\* ?itch', r'\1itch', text)
+    text = re.sub(r'(g|G) ?\* ?dd ?\* ?mn ?\* ?d', r'\1oddamned', text)
+    text = re.sub(r'(g|G) ?\* ?dd ?\* ?mm ?\* ?t', r'\1oddammit', text)
+    text = re.sub(r'(f|F) ?\* ?ck ?\* ?ng', r'\1ucking', text)
+    text = re.sub(r'(f|F) ?\* ?ck', r'\1uck', text)
+    text = re.sub(r'(b|B) ?\* ?llsh ?\* ?t', r'\1ullshit', text)
     return text 
 
 import emoji 
@@ -214,8 +218,8 @@ def libread_clean(text):
     text = remove("Dear reader, our website is running thanks to our ads.", text)
     text = remove("Please consider supporting us and the translators by disabling your ad blocker", text)
     text = remove("Currently, 55% of our readers have turned their ad-block on.", text)
-    text = remove("Alternatively, (if you dont like ads, )?you could also subscribe for only \$3 a month at Disabled for now.", text)
-    text = remove("Alternatively, (if you dont like ads, )?you could also subscribe for only \$3 for 30 days.", text)
+    text = remove(r"Alternatively, (if you dont like ads, )?you could also subscribe for only \$3 a month at Disabled for now.", text)
+    text = remove(r"Alternatively, (if you dont like ads, )?you could also subscribe for only \$3 for 30 days.", text)
     text = remove("With the subscription you will enjoy an ad-free experience, and also have access to all the VIP chapters.", text)
     text = remove("libread.com", text)
     text = remove_after(r'Written( and Directed)? by Avans, Published( exclusively)? by W\.e\.b\.n\.o\.v\.e\.l', text)
@@ -229,12 +233,13 @@ def novel_full_clean(text):
     text = remove_after(r'Tip: You can use left, right, A and D keyboard keys to browse between chapters',text)
     return text 
 def main(tui=Tui()):
-    tui.clear_box(height=1)
+    tui.clear_box()
     dests = get_dests()
     for d in dests:
         time.sleep(10)
-        worker(d,tui)
-    tui.place_text(f"Done getting!", height=1)
+        while not worker(d,tui):
+            time.sleep(10)
+    tui.place_text(f"Done getting!")
 
 if __name__ == '__main__':
     main()

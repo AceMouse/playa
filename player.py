@@ -1,22 +1,11 @@
 import subprocess
 import time 
 import os
-import sys 
 from pytimedinput import timedKey, timedKeyOrNumber
 import safer
 from lib.pytui.pytui import Tui
-from multiprocessing import Process,active_children 
-import signal
+from multiprocessing import Process
 pollRate = 0.1
-
-def _print(x):
-    for _ in range(3):
-        try:
-            print(x)
-        except:
-            print("error when printing, retrying!")
-            continue
-        break
 
 debug = False
 
@@ -84,7 +73,7 @@ def update_t(book,speed,dur,ch,tui,once=False):
         text, n_block = get_block(t, block_times, book, ch, block)
         if first or n_block != block:
             tui.clear_box(row=2)
-            tui.place_text(text.replace('\n', ' '), row=2,width=60)
+            tui.place_text(text.replace('\n', ' '), row=2)
             first = False 
             block = n_block
         tui.flush()
@@ -131,7 +120,7 @@ def play_ch(speed,book,tui):
         tui.clear()
         tui.place_text(f"{book}/{ch} not found, retrying... ({w})", row=0, height=1)
         w += 1
-        x, timedOut = timedKey(timeout=10, resetOnInput = False, allowCharacters=f"t", pollRate = pollRate)
+        x, timedOut = timedKey(timeout=10, resetOnInput = False, allowCharacters=f"t", pollRate = pollRate, newline=False,delayedEatInput=True)
         if timedOut:
             continue
         if x == 't':
@@ -143,8 +132,6 @@ def play_ch(speed,book,tui):
     ui_p.start()
     player_p = start_mp3(mp3_fp, speed, t)
     unpaused = True
-    prec1 = ''
-    prec2 = ''
     block_times = get_block_times(book, ch)
     while True:
         with safer.open(get_t_fp(book),"r") as tf:
@@ -153,12 +140,9 @@ def play_ch(speed,book,tui):
         if dur-t <= 0:
             break
 
-        x, timedOut = timedKey(timeout=-1 if not unpaused else (dur-t)/speed, resetOnInput = False, allowCharacters=f" pt{KEY_LEFT}{KEY_RIGHT}{KEY_UP}{KEY_DOWN}{PREC}wsjk",pollRate = pollRate, eatInput = True)
+        x, timedOut = timedKey(timeout=-1 if not unpaused else (dur-t)/speed, resetOnInput = False, allowCharacters=f" ptwsjk",pollRate = pollRate, eatInput = True, newline=False,delayedEatInput=True)
         if timedOut:
             break
-        prec = prec1 + prec2
-        prec1 = prec2
-        prec2 = x
         
         if x in ' p':
             unpaused = not unpaused
@@ -174,13 +158,13 @@ def play_ch(speed,book,tui):
                 player_p.kill()
                 ui_p.kill()
             return 1 
-        if (x in f"{KEY_LEFT}{KEY_RIGHT}" and prec == PREC) or x in "jk":
+        if x in "jk":
             player_p.kill()
             ui_p.kill()
             with safer.open(get_t_fp(book),"r") as tf:
                 t = float(tf.read())
             with safer.open(get_t_fp(book),"w") as tf:
-                if x in f"{KEY_LEFT}j": 
+                if x in f"j": 
                     if t < 15 and os.path.isfile(get_mp3_fp(book, ch-1)):
                         ch -= 1
                         block_times = get_block_times(book, ch)
@@ -204,18 +188,18 @@ def play_ch(speed,book,tui):
                     t = min(t+15,dur)
                 tf.write(str(t))
             tui.place_text(progress_bar(t,dur), row=1, height=1)
-            text, b = get_block(t, block_times, book, ch, 0)
-            tui.place_text(text.replace('\n', ' '), row=2, width=60)
+            text, _ = get_block(t, block_times, book, ch, 0)
+            tui.place_text(text.replace('\n', ' '), row=2)
             if unpaused:
                 player_p = start_mp3(mp3_fp, speed, t)
                 ui_p = Process(target=update_t, args=(book,speed,dur,ch,tui))
                 ui_p.start()
-        if(x in f"{KEY_UP}{KEY_DOWN}" and prec == PREC) or x in "ws":
+        if x in "ws":
             player_p.kill()
             ui_p.kill()
             with safer.open(get_t_fp(book),"r") as tf:
                 t = float(tf.read())
-            if x in f"{KEY_DOWN}s":
+            if x in f"s":
                 speed = max(speed-0.25, 0.25)
             else:
                 speed = speed+0.25
@@ -249,10 +233,10 @@ def get_speed(tui):
     if not default_speed_existed:
         tui.clear()
         tui.place_text(f"Choose a speed ({default_speed}):\n",row=0, height=1)
-        i, _ = timedKeyOrNumber(timeout = -1, allowCharacters = "t", allowNegative = False, pollRate = pollRate)
+        i, _ = timedKeyOrNumber(timeout = -1, allowCharacters = "t", allowNegative = False, pollRate = pollRate, newline=False,delayedEatInput=True)
         tui.clear()
         if i == 't':
-            return get_book()
+            return get_book(tui)
         if i != None:
             speed = i
         with safer.open(dsfp, "w") as dsf:
@@ -265,7 +249,7 @@ def get_book(tui):
     books = []
     for dir in os.listdir("output"):
         dir_fp = f"output/{dir}"
-        if not os.path.isdir(dir_fp):
+        if not os.path.isdir(dir_fp) or dir == ".logging":
             continue
         books += [dir] 
     if not os.path.isfile(dbfp):
@@ -285,7 +269,7 @@ def get_book(tui):
     arrow_number = books.index(default_book) if default_book in books else 0
     while True:
         tui.place_text("->", row=arrow_number+1, width = 2, height=1)
-        i, _ = timedKeyOrNumber(timeout = -1, allowCharacters = f"tws", allowNegative = False, allowFloat = False, pollRate = pollRate,eatKeyInput=True)
+        i, _ = timedKeyOrNumber(timeout = -1, allowCharacters = f"tws", allowNegative = False, allowFloat = False, pollRate = pollRate,eatKeyInput=True,newline=False,delayedEatInput=True)
         if i == 't':
             return None
         if i == "w":
@@ -299,6 +283,7 @@ def get_book(tui):
             book = books[arrow_number]
             continue
         if i != None:
+            i = int(i)
             if i == 0 or i > len(books):
                 continue
             book = books[i-1]
@@ -320,10 +305,5 @@ def main(tui = Tui()):
             if book is None:
                 return 0
 
-PREC = '\033['
-KEY_UP    = 'A'
-KEY_LEFT  = 'D'
-KEY_DOWN  = 'B'
-KEY_RIGHT = 'C'
 if __name__ == "__main__":
     main() 

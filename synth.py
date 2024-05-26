@@ -1,31 +1,17 @@
-from stats import get_chapters_left
 import torch
 import subprocess
 import time 
 import os
 import re
-import sys 
+os.makedirs("output/.logging", exist_ok=True)
+logfile = open('output/.logging/synth.log', 'w')
 from lib.pytui.pytui import Tui
 
 
 debug = False 
 print_text = False 
-show_profiling = True
+show_profiling = False
 
-def _print(x):
-    if debug:
-        for _ in range(3):
-            try:
-                print(x)
-            except:
-                print("error when printing, retrying!")
-                continue
-            break
-
-def print_models():
-    for x in TTS().list_models():
-        if 'en' in x:
-            _print(x)
 profile = {x:{'success_time':0, 'success_words':0, 'fault_time':0, 'fault_words':0, 'faults':[]} for x in ["gpu", "cpu", "espeak"]}
 prog_aliases = {"tts":"tts", "espeak":"espeak", "ffmpeg":"ffmpeg", "ffplay":"ffplay", "ffprobe":"ffprobe"}
 for k in prog_aliases.keys():
@@ -76,6 +62,7 @@ def tts(text, cuda, fp, model,tui):
     profile[pkey][f"{ppref}_time"] += t 
     profile[pkey][f"{ppref}_words"] += text.count(' ') +1 
     if res != 0:
+        print(f"TTS {model} (cuda: {cuda}) returned {res} on input '{text}'",file=logfile)
         profile[pkey]["faults"] += [(text,res)]
     show_profile(tui)
     return res  
@@ -89,6 +76,7 @@ def espeak(text, fp,tui):
     profile[pkey][f"{ppref}_time"] += t 
     profile[pkey][f"{ppref}_words"] += text.count(' ') +1 
     if res != 0:
+        print(f"Espeak returned {res} on input '{text}'",file=logfile)
         profile[pkey]["faults"] += [(text,res)]
     show_profile(tui)
     return res  
@@ -97,9 +85,7 @@ def espeak(text, fp,tui):
 def synth(blocks,model,folder,tui,pref="b",split=True):
     global cuda
     fps = []
-    if not os.path.exists(folder):
-       os.makedirs(folder)
-       _print(f"made folder {folder}")
+    os.makedirs(folder, exist_ok=True)
     cuda = torch.cuda.is_available()
     show_profile(tui)
     for b,block in enumerate(blocks):
@@ -108,26 +94,26 @@ def synth(blocks,model,folder,tui,pref="b",split=True):
         if (os.path.isfile(fp)):
             fps += [fp]
             continue
-        _print(f"synthing: {pref}{b:04}.wav")
+        print("synthing: {pref}{b:04}.wav",file=logfile)
         if cuda:
             torch.cuda.empty_cache()
-            _print("try on gpu")
+            print("try on gpu",file=logfile)
             if tts(block,cuda,fp,model,tui) == 0:
-                _print("success")
+                print("success",file=logfile)
                 fps += [fp]
                 continue
-        _print("try on cpu")
+        print("try on cpu",file=logfile)
         if tts(block,False,fp,model,tui) == 0:
-            _print("success")
+            print("success",file=logfile)
             fps += [fp]
             continue
         if split:
             splits = [s.strip() for s in block.split('.')]
             if len(splits) > 1:
-                _print("trying split:")
+                print("trying split:",file=logfile)
                 synth(splits,b,model,tui,pref=f"{pref}{b:04}s",split=False)
         else:
-            _print("fallback to espeak")
+            print("fallback to espeak",file=logfile)
             espeak(block,fp,tui)
             fps += [fp]
     return fps 
@@ -135,7 +121,7 @@ def synth(blocks,model,folder,tui,pref="b",split=True):
 def concat(merge_fp, wav_fp):
     return run([prog_aliases["ffmpeg"], "-f", "concat","-safe","0","-y", "-i", merge_fp, wav_fp])
 
-def to_mp3(wav_fp,out,highpass=200, lowpass=3000, debug=False):
+def to_mp3(wav_fp,out,highpass=200, lowpass=3000):
     return run([prog_aliases["ffmpeg"],"-y", "-i", wav_fp, "-acodec", "mp3","-filter:a", f"highpass=f={highpass}, lowpass=f={lowpass}", out])
 
 def get_duration(wav_fp):
@@ -182,16 +168,8 @@ tts_models = [
     "tts_models/en/multi-dataset/tortoise-v2"
 ]
 def get_dest(tui, retries=0):
-    if retries >= 3:
-        tui.buffered = True
-        tui.clear_box(row=lines_offset+1)
-        tui.place_text("Nothing to synth", row = lines_offset+1, height=1)
-        tui.place_text("Chapters ready for reading:", row = lines_offset+2, height=1)
-        x = get_chapters_left()
-        l = len(str(max(x, key=lambda item: item[0])[0]))
-        for i, (c,_,_,dir) in enumerate(x):
-            tui.place_text(f"{c:>{l}}: {dir}", col = 2, row=lines_offset+3+i, height=1)
-        tui.flush()
+    if retries >= 10:
+        tui.place_text("Nothing to synth", row = lines_offset, height=1)
         exit(0)
     m = 100000 
     md = ""
@@ -242,19 +220,6 @@ def main(tui=Tui()):
     global lines_offset
     tui.clear_box(row=lines_offset)
     dest, _= get_dest(tui)
-    folder = f"output/{dest}"
-    working = f"{folder}/.working"
-    ch_dir = f"{working}/ch"
-    url_fp = f"{working}/url.txt"
-    sch_fp = f"{working}/sch.txt"
-    pch_fp = f"{working}/pch.txt"
-    t_fp   = f"{working}/t.txt"
-    if not os.path.isdir(folder):
-       os.makedirs(folder)
-    if not os.path.isdir(working):
-       os.makedirs(working)
-    if not os.path.isdir(ch_dir):
-       os.makedirs(ch_dir)
     ch = 0 
     model = tts_models[0]
     while True:
@@ -262,27 +227,16 @@ def main(tui=Tui()):
         folder = f"output/{dest}"
         working = f"{folder}/.working"
         ch_dir = f"{working}/ch"
-        url_fp = f"{working}/url.txt"
         sch_fp = f"{working}/sch.txt"
-        pch_fp = f"{working}/pch.txt"
-        t_fp   = f"{working}/t.txt"
-        txt_fp   = f"{working}/txt"
-        with open(url_fp,"r") as urlf:
-            url = urlf.read()
+        os.makedirs(ch_dir, exist_ok=True)
         with open(sch_fp,"r") as chf:
             ch = int(chf.read())
-        if not os.path.isfile(pch_fp):
-            with open(pch_fp, "w") as pchf:
-                pchf.write(str(ch))
-        if not os.path.isfile(t_fp):
-            with open(t_fp, "w") as tf:
-                tf.write("0")
         mp3_fp = f"{folder}/ch{ch:04}.mp3"
         if not os.path.isfile(mp3_fp):
             blocks = get_blocks(dest, ch) 
             tui.place_text(f"synthing: {dest}/{ch}",row = lines_offset, height=1)
             if len(blocks) < 2:
-                tui.place_text("no blocks",row=lines_offset+1, height=1)
+                print("no blocks",file=logfile)
                 time.sleep(10)
                 continue
             fps = synth(blocks,model,ch_dir,tui,pref=f"{ch:04}b")
