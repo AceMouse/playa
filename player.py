@@ -5,6 +5,10 @@ from pytimedinput import timedKey, timedKeyOrNumber
 import safer
 from lib.pytui.pytui import Tui
 from multiprocessing import Process
+import screen_brightness_control as sbc
+inittial_brightness = sbc.get_brightness()[0]
+dark_value = 10 
+
 pollRate = 0.1
 
 debug = False
@@ -144,10 +148,11 @@ def play_ch(speed,book,tui):
         if dur-t <= 0:
             break
 
-        x, timedOut = timedKey(timeout=-1 if not unpaused else (dur-t)/speed, resetOnInput = False, allowCharacters=f" ptwsjk",pollRate = pollRate, eatInput = True, newline=False,delayedEatInput=True)
+        x, timedOut = timedKey(timeout=-1 if not unpaused else (dur-t)/speed, resetOnInput = False, allowCharacters=f" ptwsjkb",pollRate = pollRate, eatInput = True, newline=False,delayedEatInput=True)
         if timedOut:
             break
-        
+        if x == 'b':
+            sbc.set_brightness(inittial_brightness if sbc.get_brightness()[0] < inittial_brightness else dark_value)
         if x in ' p':
             unpaused = not unpaused
             if unpaused:

@@ -4,3 +4,4 @@ selenium
 safer
 torch
 tts
+screen-brightness-control

@@ -1,9 +1,18 @@
+
 from synth import main as syn_main
 from web_ch import main as get_main 
 from player import main as play_main 
 from lib.pytui.pytui import Tui
 from stats import get_chapters_left
+import screen_brightness_control as sbc
+initial_brightness = sbc.get_brightness()[0]
 
+def get_var(name, default=None):
+    if name in locals():
+        return locals()[name]
+    elif name in globals():
+        return globals()[name]
+    return default
 import time
 import signal
 import os
@@ -11,7 +20,6 @@ import sys
 os.makedirs("output/.logging", exist_ok=True)
 sys.stderr = open('output/.logging/run.log', 'w')
 from multiprocessing import Process, active_children
-from playa_utils import get_var
 
 def stats_thread(tui=Tui()):
     while True:
@@ -80,6 +88,9 @@ def signal_handler(sig, frame):
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 def stop(sig):
+    initial_brightness = get_var('initial_brightness')
+    if initial_brightness:
+        sbc.set_brightness(initial_brightness)
     driver = get_var('driver')
     if driver:
         driver.quit()
