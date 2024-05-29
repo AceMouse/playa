@@ -1,7 +1,7 @@
 import os
 
 def main():
-    dest = input("title of the novel: ").strip().replace(' ', '-')
+    dest = input("title of the novel: ").strip().replace(' ', '-').lower()
     if os.path.exists(f"output/{dest}/"):
         print(f"{dest} already exists.")
         quit()

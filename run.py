@@ -24,32 +24,43 @@ def stats_thread(tui=Tui()):
         tui.flush()
         time.sleep(.5)
 
+def get_thread(tui=Tui()):
+    while True:
+        get_main(tui=tui)
+        time.sleep(15*60)
+
+def synth_thread(tui=Tui()):
+    while True:
+        syn_main(tui=tui)
+        time.sleep(15*60)
+
+
 
 def main():
     do = "gspx"
     if len(sys.argv) > 1:
         do = sys.argv[1]
-    ps = []
+    
     tui=Tui()
     tui.clear()
     input_pos = (1,1)
     bg = (0,0,64)
-    
+    ps = []
 
     if "g" in do:
-        get_tui = Tui(col_offset=119,row_offset=2, max_width=40,max_height = 4, default_cursor_pos=input_pos,border=u"\u2588",bg_colour=bg) 
-        get_p = Process(target=get_main, args=(get_tui,))
+        get_tui = Tui(col_offset=119,row_offset=2, max_width=60,max_height = 4, default_cursor_pos=input_pos,border=u"\u2588",bg_colour=bg) 
+        get_p = Process(target=get_thread, args=(get_tui,))
         get_p.start()
         ps += [get_p]
 
     if "s" in do:
-        syn_tui = Tui(col_offset=119,row_offset=5,max_width=40, max_height=19, default_cursor_pos=input_pos,border=u"\u2588",bg_colour=bg) 
-        syn_p = Process(target=syn_main, args=(syn_tui,))
+        syn_tui = Tui(col_offset=119,row_offset=5,max_width=60, max_height=19, default_cursor_pos=input_pos,border=u"\u2588",bg_colour=bg) 
+        syn_p = Process(target=synth_thread, args=(syn_tui,))
         syn_p.start()
         ps += [syn_p]
 
     if "x" in do:
-        stat_tui = Tui(col_offset=119,row_offset=23,max_width=40, max_height=22, default_cursor_pos=input_pos,border=u"\u2588",bg_colour=bg) 
+        stat_tui = Tui(col_offset=119,row_offset=23,max_width=60, max_height=22, default_cursor_pos=input_pos,border=u"\u2588",bg_colour=bg) 
         stat_p = Process(target=stats_thread, args=(stat_tui,))
         stat_p.start()
         ps += [stat_p]
