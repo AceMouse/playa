@@ -4,8 +4,6 @@ from web_ch import main as get_main
 from player import main as play_main 
 from lib.pytui.pytui import Tui
 from stats import get_chapters_left
-import screen_brightness_control as sbc
-initial_brightness = sbc.get_brightness()[0]
 
 def get_var(name, default=None):
     if name in locals():
@@ -88,9 +86,7 @@ def signal_handler(sig, frame):
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 def stop(sig):
-    initial_brightness = get_var('initial_brightness')
-    if initial_brightness:
-        sbc.set_brightness(initial_brightness)
+    os.system("xset dpms force on")
     driver = get_var('driver')
     if driver:
         driver.quit()

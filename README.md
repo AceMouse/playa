@@ -1,12 +1,18 @@
 # playa
-Two applications: One for creating text to speach for webnovels and one for playing that speach.
+An application for creating text to speach for webnovels and playing that speach back with subtitles.
+![book menu](demo1.png)
+![playing](demo2.png)
 
 ## requirements
-docker 
-docker-compose 
-nvidia-container-toolkit?
+requirements.txt 
+ffprobe  
+ffmpeg
+ffplay
+espeak 
+tts 
 
-## setup
+
+## run
 ```
-./setup.sh
+./playa.sh 
 ```

@@ -5,9 +5,6 @@ from pytimedinput import timedKey, timedKeyOrNumber
 import safer
 from lib.pytui.pytui import Tui
 from multiprocessing import Process
-import screen_brightness_control as sbc
-inittial_brightness = sbc.get_brightness()[0]
-dark_value = 10 
 
 pollRate = 0.1
 
@@ -110,7 +107,9 @@ def get_pch_fp(book):
 def get_header(book, ch, speed):
     return f"playing {book} ch: {ch} ({speed}x)"
 
+screen_on = True
 def play_ch(speed,book,tui):
+    global screen_on
     ch = 0
     t = 0
     with safer.open(get_pch_fp(book),"r") as chf:
@@ -152,7 +151,12 @@ def play_ch(speed,book,tui):
         if timedOut:
             break
         if x == 'b':
-            sbc.set_brightness(inittial_brightness if sbc.get_brightness()[0] < inittial_brightness else dark_value)
+            if screen_on:
+                os.system("xset dpms force off")
+                screen_on = False
+            else:
+                screen_on = True
+
         if x in ' p':
             unpaused = not unpaused
             if unpaused:
