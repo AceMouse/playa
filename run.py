@@ -1,9 +1,8 @@
-
 from synth import main as syn_main
 from web_ch import main as get_main 
 from player import main as play_main 
 from lib.pytui.pytui import Tui
-from stats import get_chapters_left
+from stats import get_meta_data
 
 def get_var(name, default=None):
     if name in locals():
@@ -18,27 +17,43 @@ import sys
 os.makedirs("output/.logging", exist_ok=True)
 sys.stderr = open('output/.logging/run.log', 'w')
 from multiprocessing import Process, active_children
+initial_s = []
+for _,s,_,_,_,_ in get_meta_data():
+    initial_s += [s]
 
+
+import math
 def stats_thread(tui=Tui()):
     while True:
         tui.buffered  = True 
         tui.place_text("Chapters ready for reading:",row = 0, height=1)
-        x = get_chapters_left()
+        x = get_meta_data()
         l = len(str(max(x, key=lambda item: item[0])[0]))
-        for i, (c,_,_,dir) in enumerate(x):
-            tui.place_text(f"{c:>{l}}: {dir}", col = 2, row=i+1, height=1)
-        tui.flush()
+        for i, (c,s,p,t,_,dir) in enumerate(x):
+            r = min(int(math.log2(s-initial_s[i]+1)*64),255)
+            tui.bg_colour = (r,0,64)
+            if t <= s:
+                s-=1
+            if c == 0:
+                if t == s:
+                    tui.place_text(f"{c:>{l+2}}: {dir}", col = 0, row=i+1, height=1)
+                else:
+                    tui.place_text(f"{c:>{l+2}}: {dir} (ch {s}-{t})", col = 0, row=i+1, height=1)
+            else:
+                tui.place_text(f"{c:>{l+2}}: {dir} ch {p}-{s}", col = 0, row=i+1, height=1)
+            tui.flush()
+        tui.bg_colour = (0,0,64)
         time.sleep(.5)
 
 def get_thread(tui=Tui()):
     while True:
         get_main(tui=tui)
-        time.sleep(15*60)
+        time.sleep(5*60)
 
 def synth_thread(tui=Tui()):
     while True:
         syn_main(tui=tui)
-        time.sleep(15*60)
+        time.sleep(5*60)
 
 
 
@@ -54,19 +69,19 @@ def main():
     ps = []
 
     if "g" in do:
-        get_tui = Tui(col_offset=119,row_offset=2, max_width=60,max_height = 4, default_cursor_pos=input_pos,border=u"\u2588",bg_colour=bg) 
+        get_tui = Tui(col_offset=119,row_offset=2, max_width=80,max_height = 4, default_cursor_pos=input_pos,border=u"\u2588",bg_colour=bg) 
         get_p = Process(target=get_thread, args=(get_tui,))
         get_p.start()
         ps += [get_p]
 
     if "s" in do:
-        syn_tui = Tui(col_offset=119,row_offset=5,max_width=60, max_height=19, default_cursor_pos=input_pos,border=u"\u2588",bg_colour=bg) 
+        syn_tui = Tui(col_offset=119,row_offset=5,max_width=80, max_height=19, default_cursor_pos=input_pos,border=u"\u2588",bg_colour=bg) 
         syn_p = Process(target=synth_thread, args=(syn_tui,))
         syn_p.start()
         ps += [syn_p]
 
     if "x" in do:
-        stat_tui = Tui(col_offset=119,row_offset=23,max_width=60, max_height=22, default_cursor_pos=input_pos,border=u"\u2588",bg_colour=bg) 
+        stat_tui = Tui(col_offset=119,row_offset=23,max_width=80, max_height=22, default_cursor_pos=input_pos,border=u"\u2588",bg_colour=bg) 
         stat_p = Process(target=stats_thread, args=(stat_tui,))
         stat_p.start()
         ps += [stat_p]

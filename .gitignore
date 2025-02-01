@@ -10,3 +10,4 @@ __pycache__/*
 play.sh
 synth.sh
 .python-version
+tts_models

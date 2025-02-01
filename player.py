@@ -5,6 +5,7 @@ from pytimedinput import timedKey, timedKeyOrNumber
 import safer
 from lib.pytui.pytui import Tui
 from multiprocessing import Process
+from utils import get_file
 
 pollRate = 0.1
 
@@ -27,8 +28,8 @@ def format_time(in_sec):
     return f"{hr:02}:{min:02}:{sec:02}:{msec:03}"
 
 def progress_bar(t,dur):
-    l = 20
-    fill = int((t*l)/dur)
+    le = 20
+    fill = int((t*le)/dur)
     empty = 20-fill 
     right_vert = u"\u2595"
     left_vert = u"\u258F"
@@ -127,7 +128,7 @@ def play_ch(speed,book,tui):
         tui.clear()
         tui.place_text(f"{book}/{ch} not found, retrying... ({w})", row=0, height=1)
         w += 1
-        x, timedOut = timedKey(timeout=10, resetOnInput = False, allowCharacters=f"t", pollRate = pollRate, newline=False,delayedEatInput=True)
+        x, timedOut = timedKey(timeout=10, resetOnInput = False, allowCharacters="t", pollRate = pollRate, newline=False,delayedEatInput=True, ignoreCase=True)
         if timedOut:
             continue
         if x == 't':
@@ -147,37 +148,29 @@ def play_ch(speed,book,tui):
         if dur-t <= 0:
             break
 
-        x, timedOut = timedKey(timeout=-1 if not unpaused else (dur-t)/speed, resetOnInput = False, allowCharacters=f" ptwsjkb",pollRate = pollRate, eatInput = True, newline=False,delayedEatInput=True)
+        x, timedOut = timedKey(timeout=-1 if not unpaused else (dur-t)/speed, resetOnInput = False, allowCharacters=" ptwsjkb",pollRate = pollRate, eatInput = True, newline=False,delayedEatInput=True, ignoreCase=True)
         if timedOut:
             break
-        if x == 'b':
-            if screen_on:
-                os.system("xset dpms force off")
-                screen_on = False
-            else:
-                screen_on = True
 
+        if x == 'b' and screen_on:
+            os.system("xset dpms force off")
+            screen_on = False
+            continue
+        else:
+            screen_on = True
+
+
+        player_p.kill()
+        ui_p.kill()
         if x in ' p':
             unpaused = not unpaused
-            if unpaused:
-                player_p = start_mp3(mp3_fp, speed, t)
-                ui_p = Process(target=update_t, args=(book,speed,dur,ch,tui))
-                ui_p.start()
-            else:
-                player_p.kill()
-                ui_p.kill()
         if x == 't':
-            if unpaused:
-                player_p.kill()
-                ui_p.kill()
             return 1 
         if x in "jk":
-            player_p.kill()
-            ui_p.kill()
             with safer.open(get_t_fp(book),"r") as tf:
                 t = float(tf.read())
             with safer.open(get_t_fp(book),"w") as tf:
-                if x in f"j": 
+                if x in "j": 
                     if t < 15 and os.path.isfile(get_mp3_fp(book, ch-1)):
                         ch -= 1
                         block_times = get_block_times(book, ch)
@@ -203,26 +196,20 @@ def play_ch(speed,book,tui):
             tui.place_text(progress_bar(t,dur), row=1, height=1)
             text, _ = get_block(t, block_times, book, ch, 0)
             tui.place_text(text.replace('\n', ' '), row=2)
-            if unpaused:
-                player_p = start_mp3(mp3_fp, speed, t)
-                ui_p = Process(target=update_t, args=(book,speed,dur,ch,tui))
-                ui_p.start()
         if x in "ws":
-            player_p.kill()
-            ui_p.kill()
             with safer.open(get_t_fp(book),"r") as tf:
                 t = float(tf.read())
-            if x in f"s":
+            if x in "s":
                 speed = max(speed-0.25, 0.25)
             else:
                 speed = speed+0.25
             with safer.open(dsfp, "w") as dsf:
                 dsf.write(str(speed))
             tui.place_text(get_header(book,ch,speed), row=0, height=1)
-            if unpaused:
-                player_p = start_mp3(mp3_fp, speed, t)
-                ui_p = Process(target=update_t, args=(book,speed,dur,ch,tui))
-                ui_p.start()
+        if unpaused:
+            player_p = start_mp3(mp3_fp, speed, t)
+            ui_p = Process(target=update_t, args=(book,speed,dur,ch,tui))
+            ui_p.start()
 
     player_p.wait()
     ui_p.kill()
@@ -232,7 +219,6 @@ def play_ch(speed,book,tui):
         chf.write(str(ch+1))
     return 0 
 
-dbfp = "output/.def_book"
 dsfp = "output/.def_speed"
 def get_speed(tui):
     default_speed_existed = True
@@ -246,65 +232,18 @@ def get_speed(tui):
     if not default_speed_existed:
         tui.clear()
         tui.place_text(f"Choose a speed ({default_speed}):\n",row=0, height=1)
-        i, _ = timedKeyOrNumber(timeout = -1, allowCharacters = "t", allowNegative = False, pollRate = pollRate, newline=False,delayedEatInput=True)
+        i, _ = timedKeyOrNumber(timeout = -1, allowCharacters = "t", allowNegative = False, pollRate = pollRate, newline=False,delayedEatInput=True, ignoreCase=True)
         tui.clear()
         if i == 't':
             return get_book(tui)
-        if i != None:
+        if i is not None:
             speed = i
         with safer.open(dsfp, "w") as dsf:
             dsf.write(str(speed))
     return speed
 
 def get_book(tui):
-    tui.clear()
-    book = "" 
-    books = []
-    for dir in os.listdir("output"):
-        dir_fp = f"output/{dir}"
-        if not os.path.isdir(dir_fp) or dir == ".logging":
-            continue
-        books += [dir] 
-    if not os.path.isfile(dbfp):
-        with safer.open(dbfp, "w") as dbf:
-            dbf.write(books[0])
-
-    default_book = ""
-    with safer.open(dbfp, "r") as dbf:
-        default_book = str(dbf.read())
-    book = default_book
-    tui.buffered=True
-    tui.clear()
-    tui.place_text(f"Choose a book (1-{len(books)}):", height=1, row=0)
-    for i,b in enumerate(books):
-        tui.place_text(f"{i+1:>2} {b}", height=1, col=2, row=i+1)
-    tui.buffered=False
-    arrow_number = books.index(default_book) if default_book in books else 0
-    while True:
-        tui.place_text("->", row=arrow_number+1, width = 2, height=1)
-        i, _ = timedKeyOrNumber(timeout = -1, allowCharacters = f"tws", allowNegative = False, allowFloat = False, pollRate = pollRate,eatKeyInput=True,newline=False,delayedEatInput=True)
-        if i == 't':
-            return None
-        if i == "w":
-            tui.place_text("", row=arrow_number+1, width = 2, height=1)
-            arrow_number = max(0, arrow_number-1)
-            book = books[arrow_number]
-            continue
-        if i == "s":
-            tui.place_text("", row=arrow_number+1, width = 2, height=1)
-            arrow_number = min(len(books)-1, arrow_number+1)
-            book = books[arrow_number]
-            continue
-        if i != None:
-            i = int(i)
-            if i == 0 or i > len(books):
-                continue
-            book = books[i-1]
-        with safer.open(dbfp, "w") as dbf:
-            dbf.write(book)
-        break
-    tui.clear()
-    return book
+    return get_file("Choose a book", tui=tui, default_file=".def_book", directory="output",exclude=[".logging"], include_files=False)
 
 def main(tui = Tui()):
     os.nice(19)

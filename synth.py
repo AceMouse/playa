@@ -167,10 +167,7 @@ tts_models = [
     "tts_models/en/blizzard2013/capacitron-t2-c150_v2",
     "tts_models/en/multi-dataset/tortoise-v2"
 ]
-def get_dest(tui, retries=0):
-    if retries >= 10:
-        tui.place_text("Nothing to synth", row = lines_offset, height=1)
-        exit(0)
+def get_dest(tui):
     m = 100000 
     md = ""
     m_left = 0
@@ -194,9 +191,9 @@ def get_dest(tui, retries=0):
                     md = dir 
 
     if m == 100000:
-        time.sleep(10)
-        return get_dest(tui, retries=retries+1)
-    return md, m_left <= 0
+        tui.place_text("Nothing to synth", row = lines_offset, height=1)
+        return md, m_left <= 0, True  
+    return md, m_left <= 0, False 
     
 def get_blocks(dest, ch):
     ch_fp = f"output/{dest}/.working/txt/ch{ch:04}"
@@ -219,11 +216,13 @@ def get_blocks(dest, ch):
 def main(tui=Tui()):
     global lines_offset
     tui.clear_box(row=lines_offset)
-    dest, _= get_dest(tui)
     ch = 0 
     model = tts_models[0]
     while True:
-        dest, last = get_dest(tui)
+        dest, last,  none_left = get_dest(tui)
+        if none_left:
+            time.sleep(1)
+            continue
         folder = f"output/{dest}"
         working = f"{folder}/.working"
         ch_dir = f"{working}/ch"

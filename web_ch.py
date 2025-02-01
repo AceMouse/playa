@@ -97,6 +97,7 @@ def worker(dest, tui):
             if len(text) < 100:
                 print(f"Could not fetch {dest}/{ch}. Fetched text: {text}", file=logfile)
                 driver.quit()
+                os.remove(ch_dir)
                 return False
             with open(full_txt_fp,"w") as f:
                 f.write(text)
@@ -161,14 +162,17 @@ def worker(dest, tui):
 def clean_text(text):
     text = clean(text, lower=False, no_urls=True, replace_with_url="", to_ascii=True)
     text = expand_contractions(remove_emoji(uncensor_text(misc_clean(text))))
-    text = re.sub(r'If you find any errors \( Ads popup, ads redirect, broken links, non-standard content, etc\. \), Please let us know < report chapter > so we can fix it as soon as possible\.', '', text, flags= re.MULTILINE|re.IGNORECASE)
+    text = remove_after(r'If you find any errors \( Ads popup, ads redirect, broken links, non-standard content, etc\. \), Please let us know < report chapter > so we can fix it as soon as possible\.', text)
+    text = remove_after(r"Tip: You can use left, right, A and D keyboard keys to browse between chapters\.", text)
+    text = remove_after(r"Tap the screen to use reading tools", text)
     return text
 
 def misc_clean(text):
     text = re.sub("'", '', text) #remove 's for now, figure contractions out. 
     text = re.sub('"', '', text)  
     text = re.sub(r'\\n', '\n', text)  
-    text = re.sub(r'\.\.+', '.', text)
+    text = re.sub(r'\.+', '.', text)
+    text = re.sub(r'\?+', '?', text)
     text = re.sub(r'\[|\]', '', text)
     text = re.sub(r'\(|\)', '', text)
     text = re.sub(r'([a-zA-Z])([0-9])', r'\1 \2', text, flags=re.MULTILINE)
@@ -236,7 +240,6 @@ def main(tui=Tui()):
     tui.clear_box()
     dests = get_dests()
     for d in dests:
-        time.sleep(10)
         while not worker(d,tui):
             time.sleep(10)
     tui.place_text(f"Done getting!")

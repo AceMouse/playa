@@ -1,6 +1,23 @@
 import sys
 import os
 
+def get_meta_data():
+    ret = []
+    for dir in os.listdir("output"):
+        complete = os.path.exists(f"output/{dir}/.complete")
+        dir_fp = f"output/{dir}/.working"
+        if not os.path.isdir(dir_fp):
+            continue
+        with open(f"{dir_fp}/sch.txt","r") as schf:
+            sch = int(schf.read())
+            with open(f"{dir_fp}/pch.txt","r") as pchf:
+                pch = int(pchf.read())
+                with open(f"{dir_fp}/tch.txt","r") as tchf:
+                    tch = int(tchf.read())
+                    ret += [(sch-pch,sch,pch,tch,complete,dir)]
+    
+    return sorted(ret, key=lambda x: x[5])
+
 def get_chapters_left():
     ret = []
     for dir in os.listdir("output"):
@@ -13,7 +30,8 @@ def get_chapters_left():
             with open(f"{dir_fp}/pch.txt","r") as pchf:
                 pch = int(pchf.read())
                 ret += [(sch-pch,sch,complete,dir)]
-    return ret 
+    
+    return sorted(ret, key=lambda x: x[3])
 
 def get_current_time():
     ret = []
@@ -28,7 +46,7 @@ def get_current_time():
             with open(f"{dir_fp}/pch.txt","r") as pchf:
                 pch = int(pchf.read())
                 ret += [(pch,t,complete,dir)]
-    return ret 
+    return sorted(ret, key=lambda x: x[3]) 
 
 def get_urls():
     ret = []
@@ -40,7 +58,7 @@ def get_urls():
         with open(f"{dir_fp}/url.txt","r") as tf:
             url = tf.read()
             ret += [(url,complete)]
-    return ret 
+    return sorted(ret, key=lambda x: x[0]) 
 
 def get_urls_by_domain(show_complete):
     ret = dict()
