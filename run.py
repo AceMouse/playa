@@ -1,8 +1,13 @@
-from synth import main as syn_main
-from web_ch import main as get_main 
 from player import main as play_main 
 from lib.pytui.pytui import Tui
 from stats import get_meta_data
+from multiprocessing import Process, active_children
+from threading import Thread, currentThread
+import time
+import signal
+import os
+import sys
+import math
 
 def get_var(name, default=None):
     if name in locals():
@@ -10,19 +15,13 @@ def get_var(name, default=None):
     elif name in globals():
         return globals()[name]
     return default
-import time
-import signal
-import os
-import sys
 os.makedirs("output/.logging", exist_ok=True)
 sys.stderr = open('output/.logging/run.log', 'w')
-from multiprocessing import Process, active_children
 initial_s = []
 for _,s,_,_,_,_ in get_meta_data():
     initial_s += [s]
 
 
-import math
 def stats_thread(tui=Tui()):
     while True:
         tui.buffered  = True 
@@ -46,11 +45,13 @@ def stats_thread(tui=Tui()):
         time.sleep(.5)
 
 def get_thread(tui=Tui()):
+    from web_ch import main as get_main 
     while True:
         get_main(tui=tui)
         time.sleep(5*60)
 
 def synth_thread(tui=Tui()):
+    from synth import main as syn_main
     while True:
         syn_main(tui=tui)
         time.sleep(5*60)
@@ -76,6 +77,7 @@ def main():
 
     if "s" in do:
         syn_tui = Tui(col_offset=119,row_offset=5,max_width=80, max_height=19, default_cursor_pos=input_pos,border=u"\u2588",bg_colour=bg) 
+#        syn_p = Thread(target=synth_thread, args=(syn_tui,))
         syn_p = Process(target=synth_thread, args=(syn_tui,))
         syn_p.start()
         ps += [syn_p]

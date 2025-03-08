@@ -3,13 +3,28 @@ import subprocess
 import time 
 import os
 import re
+from TTS.api import TTS
+import contextlib
+import sys
+from lib.pytui.pytui import Tui
+@contextlib.contextmanager
+def redirect_stdout():
+    old_stdout = sys.stdout
+    with open(os.devnull,'a') as f:
+        sys.stdout = f 
+        try:
+            yield
+        finally:
+            sys.stdout = old_stdout
 os.makedirs("output/.logging", exist_ok=True)
 logfile = open('output/.logging/synth.log', 'w')
-from lib.pytui.pytui import Tui
 
 tts_model ="tts_models/multilingual/multi-dataset/xtts_v2" 
 tts_speaker_wav_fp = "edward_hermann.wav" 
 tts_language = "en"
+cuda = torch.cuda.is_available()
+with redirect_stdout():
+    tts_model = TTS(tts_model).to("cuda" if cuda else "cpu") 
 debug = False 
 print_text = False 
 show_profiling = False
@@ -31,7 +46,7 @@ def run(cmd):
             return p.returncode
         except TypeError:
             time.sleep(2)
-cuda = False
+
 def show_profile(tui):
     global cuda 
     if show_profiling:
@@ -55,19 +70,10 @@ def show_profile(tui):
         tui.buffered = old_buf
 
 
-def tts(text, cuda, fp, tui):
-    t = time.time()
-    res = run([prog_aliases["tts"], "--text", text, "--use_cuda",str(cuda),"--model_name", tts_model,"--out_path",fp,"--speaker_wav", tts_speaker_wav_fp, "--language_idx", tts_language ])
-    t = time.time()-t 
-    pkey = "gpu" if cuda else "cpu"
-    ppref = "success" if res == 0 else "fault"
-    profile[pkey][f"{ppref}_time"] += t 
-    profile[pkey][f"{ppref}_words"] += text.count(' ') +1 
-    if res != 0:
-        print(f"TTS {tts_model} (cuda: {cuda}) returned {res} on input '{text}'",file=logfile)
-        profile[pkey]["faults"] += [(text,res)]
-    show_profile(tui)
-    return res  
+def tts(text, fp, tui):
+    with redirect_stdout():
+        tts_model.tts_to_file(text=text,file_path=fp,speaker_wav=tts_speaker_wav_fp,language=tts_language)
+#    res = run([prog_aliases["tts"], "--text", text, "--use_cuda",str(cuda),"--model_name", tts_model,"--out_path",fp,"--speaker_wav", tts_speaker_wav_fp, "--language_idx", tts_language ])
 
 def espeak(text, fp,tui): 
     t = time.time()
@@ -85,10 +91,8 @@ def espeak(text, fp,tui):
 
 
 def synth(blocks,folder,tui,pref="b",split=True):
-    global cuda
     fps = []
     os.makedirs(folder, exist_ok=True)
-    cuda = torch.cuda.is_available()
     show_profile(tui)
     for b,block in enumerate(blocks):
         tui.place_text(f"{b:02}/{len(blocks)-1}", row=lines_offset+1, height=1)
@@ -97,27 +101,22 @@ def synth(blocks,folder,tui,pref="b",split=True):
             fps += [fp]
             continue
         print("synthing: {pref}{b:04}.wav",file=logfile)
-        if cuda:
-            torch.cuda.empty_cache()
-            print("try on gpu",file=logfile)
-            if tts(block,cuda,fp,tui) == 0:
-                print("success",file=logfile)
+        try:
+            if cuda:
+                torch.cuda.empty_cache()
+            tts(block,fp,tui)
+            fps += [fp]
+        except Exception as e:
+            print(f"EXCEPTION:{str(e)}",file=logfile)
+            if split:
+                splits = [s.strip() for s in block.split('.')]
+                if len(splits) > 1:
+                    print("trying split:",file=logfile)
+                    synth(splits,b,tui,pref=f"{pref}{b:04}s",split=False)
+            else:
+                print("fallback to espeak",file=logfile)
+                espeak(block,fp,tui)
                 fps += [fp]
-                continue
-        print("try on cpu",file=logfile)
-        if tts(block,False,fp,tui) == 0:
-            print("success",file=logfile)
-            fps += [fp]
-            continue
-        if split:
-            splits = [s.strip() for s in block.split('.')]
-            if len(splits) > 1:
-                print("trying split:",file=logfile)
-                synth(splits,b,tui,pref=f"{pref}{b:04}s",split=False)
-        else:
-            print("fallback to espeak",file=logfile)
-            espeak(block,fp,tui)
-            fps += [fp]
     return fps 
 
 def concat(merge_fp, wav_fp):

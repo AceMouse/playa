@@ -3,5 +3,5 @@ regex
 selenium
 safer
 torch
-tts
+coqui-tts
 screen-brightness-control

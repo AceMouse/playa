@@ -3,6 +3,7 @@ from selenium.webdriver.firefox.options import Options
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
+
 import time 
 import os
 from cleantext import clean
@@ -45,6 +46,17 @@ uas = [
 os.makedirs("output/.logging", exist_ok=True)
 logfile = open('output/.logging/getter.log', 'w')
 import random
+import logging
+import traceback
+
+url_logger = logging.getLogger('urllib3.connectionpool')
+url_logger.setLevel(logging.CRITICAL)
+sel_logger = logging.getLogger('selenium.webdriver.common.selenium_manager')
+sel_logger.setLevel(logging.CRITICAL)
+fh = logging.FileHandler('output/.logging/getter.log')
+fh.setLevel(logging.DEBUG)
+sel_logger.addHandler(fh)
+url_logger.addHandler(fh)
 def worker(dest, tui):
     firefox_options = Options()
     my_user_agent = uas[random.randint(0, len(uas)-1)]
@@ -155,7 +167,8 @@ def worker(dest, tui):
                         break
         driver.quit()
         return True
-
+    except Exception as e:
+        traceback.print_exc()
     finally:
         driver.quit()
         return True
@@ -242,7 +255,7 @@ def main(tui=Tui()):
     for d in dests:
         while not worker(d,tui):
             time.sleep(10)
-    tui.place_text(f"Done getting!")
+    tui.place_text("Done getting!")
 
 if __name__ == '__main__':
     main()
