@@ -7,7 +7,9 @@ os.makedirs("output/.logging", exist_ok=True)
 logfile = open('output/.logging/synth.log', 'w')
 from lib.pytui.pytui import Tui
 
-
+tts_model ="tts_models/multilingual/multi-dataset/xtts_v2" 
+tts_speaker_wav_fp = "edward_hermann.wav" 
+tts_language = "en"
 debug = False 
 print_text = False 
 show_profiling = False
@@ -53,16 +55,16 @@ def show_profile(tui):
         tui.buffered = old_buf
 
 
-def tts(text, cuda, fp, model,tui):
+def tts(text, cuda, fp, tui):
     t = time.time()
-    res = run([prog_aliases["tts"], "--text", text, "--use_cuda",str(cuda),"--model_name", model,"--out_path",fp])
+    res = run([prog_aliases["tts"], "--text", text, "--use_cuda",str(cuda),"--model_name", tts_model,"--out_path",fp,"--speaker_wav", tts_speaker_wav_fp, "--language_idx", tts_language ])
     t = time.time()-t 
     pkey = "gpu" if cuda else "cpu"
     ppref = "success" if res == 0 else "fault"
     profile[pkey][f"{ppref}_time"] += t 
     profile[pkey][f"{ppref}_words"] += text.count(' ') +1 
     if res != 0:
-        print(f"TTS {model} (cuda: {cuda}) returned {res} on input '{text}'",file=logfile)
+        print(f"TTS {tts_model} (cuda: {cuda}) returned {res} on input '{text}'",file=logfile)
         profile[pkey]["faults"] += [(text,res)]
     show_profile(tui)
     return res  
@@ -82,7 +84,7 @@ def espeak(text, fp,tui):
     return res  
 
 
-def synth(blocks,model,folder,tui,pref="b",split=True):
+def synth(blocks,folder,tui,pref="b",split=True):
     global cuda
     fps = []
     os.makedirs(folder, exist_ok=True)
@@ -98,12 +100,12 @@ def synth(blocks,model,folder,tui,pref="b",split=True):
         if cuda:
             torch.cuda.empty_cache()
             print("try on gpu",file=logfile)
-            if tts(block,cuda,fp,model,tui) == 0:
+            if tts(block,cuda,fp,tui) == 0:
                 print("success",file=logfile)
                 fps += [fp]
                 continue
         print("try on cpu",file=logfile)
-        if tts(block,False,fp,model,tui) == 0:
+        if tts(block,False,fp,tui) == 0:
             print("success",file=logfile)
             fps += [fp]
             continue
@@ -111,7 +113,7 @@ def synth(blocks,model,folder,tui,pref="b",split=True):
             splits = [s.strip() for s in block.split('.')]
             if len(splits) > 1:
                 print("trying split:",file=logfile)
-                synth(splits,b,model,tui,pref=f"{pref}{b:04}s",split=False)
+                synth(splits,b,tui,pref=f"{pref}{b:04}s",split=False)
         else:
             print("fallback to espeak",file=logfile)
             espeak(block,fp,tui)
@@ -217,9 +219,8 @@ def main(tui=Tui()):
     global lines_offset
     tui.clear_box(row=lines_offset)
     ch = 0 
-    model = tts_models[0]
     while True:
-        dest, last,  none_left = get_dest(tui)
+        dest, last, none_left = get_dest(tui)
         if none_left:
             time.sleep(1)
             continue
@@ -238,7 +239,7 @@ def main(tui=Tui()):
                 print("no blocks",file=logfile)
                 time.sleep(10)
                 continue
-            fps = synth(blocks,model,ch_dir,tui,pref=f"{ch:04}b")
+            fps = synth(blocks,ch_dir,tui,pref=f"{ch:04}b")
             merge(working, mp3_fp, fps, ch, tui)
             rm_content(ch_dir)
 
