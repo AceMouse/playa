@@ -5,11 +5,17 @@ An application for creating text to speach for webnovels and playing that speach
 
 ## Requirements
 python3
+
 pip installed requirements.txt 
+
 ffmpeg
+
 ffprobe  
+
 ffplay
+
 espeak 
+
 ## Setup
 ```
 git clone https://github.com/AceMouse/playa.git && cd playa
@@ -28,6 +34,7 @@ This only works if you can navigate between chapters using the arrow keys on the
 
 ## Running the application 
 Add g to get new chapters s to synthesise p to enable the player and x to show book stats. 
+
 Default is all enabled.
 ```
 ./env/bin/python run.py <optional:gspx> 
@@ -40,8 +47,11 @@ With preserve being the amount of chapters to preserve before the current one.
 ```
 ## Move read, synth and getter heads
 Edit pch and t to adjust the chapter and time offset to read from.
+
 Edit tch and url to adjust the chapter to get from the web. 
+
 Edit sch to adjust which chapter to synthesise next. 
+
 Best practise is to remove already gotten and synthesised chapters after the head by editing the files in the output directory. 
 
 ```
@@ -51,14 +61,20 @@ Best practise is to remove already gotten and synthesised chapters after the hea
 ## key bindings
 ### When selecting a book to play:
 Press t at any time to quit the application.
+
 Now you can navigate the booklist by pressing w and s to go up and down or type a the number of the book. 
+
 Press space or enter to select a book to listen to.
 
 ### While a book is playing:
 Press t at any time to return to book selection.
+
 Controll naration speed by pressing w and s to speed up and down. 
+
 Press space to pause.
+
 Press j and k to jump forwards or backwards. 
+
 Press b to turn of screen backlight, press any key to turn back on.
 
 ## OS support
