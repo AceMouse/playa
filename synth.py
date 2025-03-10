@@ -7,36 +7,19 @@ from TTS.api import TTS
 import contextlib
 import sys
 from lib.pytui.pytui import Tui
+debug = False 
+print_text = False 
+show_profiling = False
 @contextlib.contextmanager
 def redirect_stdout():
     old_stdout = sys.stdout
     with open(os.devnull,'a') as f:
-        sys.stdout = f 
+        if not debug:
+            sys.stdout = f 
         try:
             yield
         finally:
             sys.stdout = old_stdout
-os.makedirs("output/.logging", exist_ok=True)
-logfile = open('output/.logging/synth.log', 'w')
-
-tts_model ="tts_models/multilingual/multi-dataset/xtts_v2" 
-tts_speaker_wav_fp = "edward_hermann.wav" 
-tts_language = "en"
-cuda = torch.cuda.is_available()
-with redirect_stdout():
-    tts_model = TTS(tts_model).to("cuda" if cuda else "cpu") 
-debug = False 
-print_text = False 
-show_profiling = False
-
-profile = {x:{'success_time':0, 'success_words':0, 'fault_time':0, 'fault_words':0, 'faults':[]} for x in ["gpu", "cpu", "espeak"]}
-prog_aliases = {"tts":"tts", "espeak":"espeak", "ffmpeg":"ffmpeg", "ffplay":"ffplay", "ffprobe":"ffprobe"}
-for k in prog_aliases.keys():
-    alias = f".{k}_alias"
-    if os.path.isfile(alias):
-        with open(alias, "r") as a:
-            prog_aliases[k] = a.read().strip()
-
 def run(cmd):
     d = {'args': cmd} if debug else {'args': cmd,'stdout':subprocess.DEVNULL,'stderr':subprocess.DEVNULL}
     for _ in range(3):
@@ -46,6 +29,41 @@ def run(cmd):
             return p.returncode
         except TypeError:
             time.sleep(2)
+        except Exception:
+            return 1
+prog_aliases = {"espeak":"espeak", "ffmpeg":"ffmpeg", "ffplay":"ffplay", "ffprobe":"ffprobe"}
+
+def check_debs():
+    err = False
+    if run([prog_aliases["espeak"], "--version"]) != 0:
+        print("please install espeak and provide the absolute executable path in the .espeak_alias file")
+        err = True
+    for ff in ["ffmpeg", "ffplay", "ffprobe"]:
+        if run([prog_aliases[ff], "-version"]) != 0:
+            print(f"please install {ff} and provide the absolute executable path in the .{ff}_alias file")
+            err = True
+    if err:
+        sys.exit(1)
+def load_deb_aliases():
+    global prog_aliases
+    for k in prog_aliases.keys():
+        alias = f".{k}_alias"
+        if os.path.isfile(alias):
+            with open(alias, "r") as a:
+                prog_aliases[k] = a.read().strip()
+    check_debs()
+load_deb_aliases()
+os.makedirs("output/.logging", exist_ok=True)
+logfile = open('output/.logging/synth.log', 'w')
+
+tts_model_fp = "tts_models/multilingual/multi-dataset/xtts_v2" 
+tts_speaker_wav_fp = "edward_hermann.wav" 
+tts_language = "en"
+cuda = torch.cuda.is_available()
+tts_model = None
+
+profile = {x:{'success_time':0, 'success_words':0, 'fault_time':0, 'fault_words':0, 'faults':[]} for x in ["gpu", "cpu", "espeak"]}
+
 
 def show_profile(tui):
     global cuda 
@@ -100,7 +118,7 @@ def synth(blocks,folder,tui,pref="b",split=True):
         if (os.path.isfile(fp)):
             fps += [fp]
             continue
-        print("synthing: {pref}{b:04}.wav",file=logfile)
+        print(f"synthing: {fp}",file=logfile)
         try:
             if cuda:
                 torch.cuda.empty_cache()
@@ -215,8 +233,12 @@ def get_blocks(dest, ch):
     return blocks
 
 def main(tui=Tui()):
+    global tts_model
     global lines_offset
     tui.clear_box(row=lines_offset)
+    if tts_model is None:
+        with redirect_stdout():
+            tts_model = TTS(tts_model_fp).to("cuda" if cuda else "cpu") 
     ch = 0 
     while True:
         dest, last, none_left = get_dest(tui)
