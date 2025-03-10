@@ -8,7 +8,6 @@ import os
 import sys
 import math
 from web_ch import main as get_main 
-from synth import main as syn_main
 
 def get_var(name, default=None):
     if name in locals():
@@ -51,6 +50,7 @@ def get_thread(tui=Tui()):
         time.sleep(5*60)
 
 def synth_thread(tui=Tui()):
+    from synth import main as syn_main
     while True:
         syn_main(tui=tui)
         time.sleep(5*60)

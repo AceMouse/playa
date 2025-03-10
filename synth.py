@@ -6,6 +6,7 @@ import re
 from TTS.api import TTS
 import contextlib
 import sys
+import signal
 from lib.pytui.pytui import Tui
 debug = False 
 print_text = False 
@@ -43,7 +44,8 @@ def check_debs():
             print(f"please install {ff} and provide the absolute executable path in the .{ff}_alias file")
             err = True
     if err:
-        sys.exit(1)
+        os.kill(os.getppid(), signal.SIGTERM)
+        quit()
 def load_deb_aliases():
     global prog_aliases
     for k in prog_aliases.keys():
@@ -235,10 +237,10 @@ def get_blocks(dest, ch):
 def main(tui=Tui()):
     global tts_model
     global lines_offset
-    tui.clear_box(row=lines_offset)
     if tts_model is None:
         with redirect_stdout():
             tts_model = TTS(tts_model_fp).to("cuda" if cuda else "cpu") 
+    tui.clear_box(row=lines_offset)
     ch = 0 
     while True:
         dest, last, none_left = get_dest(tui)
