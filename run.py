@@ -76,7 +76,6 @@ def main():
 
     if "s" in do:
         syn_tui = Tui(col_offset=119,row_offset=5,max_width=80, max_height=19, default_cursor_pos=input_pos,border=u"\u2588",bg_colour=bg) 
-#        syn_p = Thread(target=synth_thread, args=(syn_tui,))
         syn_p = Process(target=synth_thread, args=(syn_tui,))
         syn_p.start()
         ps += [syn_p]
@@ -92,16 +91,9 @@ def main():
         play_main(play_tui)
         for p in ps:
             p.terminate()
-        stop(signal.SIGTERM)
+        stop(signal.SIGTERM,None)
 
-def signal_handler(sig, frame):
-    fn = get_var('stop')
-    if fn:
-        fn(sig)
-
-signal.signal(signal.SIGINT, signal_handler)
-signal.signal(signal.SIGTERM, signal_handler)
-def stop(sig):
+def stop(sig,frame):
     os.system("xset dpms force on")
     driver = get_var('driver')
     if driver:
@@ -110,15 +102,18 @@ def stop(sig):
         if child:
             os.kill(child.pid, sig)
     for child in active_children():
-        if child.pid:
-            os.kill(child.pid, sig)
+        child.terminate()
     time.sleep(0.1)
     for child in active_children():
         if child.pid:
             os.kill(child.pid, signal.SIGKILL)
+    os.system('pkill -TERM -P {pid}'.format(pid=os.getpid()))
     if __name__ == '__main__':
         Tui(hide_cursor=False)
     exit(0)
+
+signal.signal(signal.SIGINT, stop)
+signal.signal(signal.SIGTERM, stop)
 
 
 if __name__ == "__main__":
