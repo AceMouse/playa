@@ -92,79 +92,59 @@ def worker(dest, tui):
                 ch = int(chf.read())
 
 
+
             ch_dir = f"{txt_dir}/ch{ch:04}"
-            if not os.path.isdir(ch_dir):
-                os.makedirs(ch_dir)
-            else:
-                for dir in os.listdir(ch_dir):
-                    if re.search(r"b\d{4}.txt", dir):
-                        os.remove(f"{ch_dir}/{dir}")
-
-            if print_progress:
-                tui.place_text(f"Getting: {dest}/{ch}")
-            driver.get(f'about:reader?url={url}')
-            time.sleep(2)
             full_txt_fp = f"{txt_dir}/ch{ch:04}.txt"
-            text = driver.find_element(By.CLASS_NAME,"moz-reader-content").text
-            if len(text) < 100:
-                print(f"Could not fetch {dest}/{ch}. Fetched text: {text}", file=logfile)
-                driver.quit()
-                os.remove(ch_dir)
-                return False
-            with open(full_txt_fp,"w") as f:
-                f.write(text)
-
-            text = clean_text(text)
-            if 'novelfull' in url:
-                text = novel_full_clean(text)
-            if 'libread' in url or 'freewebnovel.noveleast' in url:
-                text = libread_clean(text)
-
-            sentances = text.split('\n')
-            if not re.search('chapter', sentances[0], re.IGNORECASE):
-                sentances = [f"chapter {ch}"] + sentances
-
-            blocks = [" ".join(sentances[i:i+2]).strip() for i in range(0, len(sentances), 2)]
-            text = "\n".join(blocks)
-
-
-            if print_text:
-                tui.place_text(text)
-            b = 0 
-            for block in blocks:
-                block = block.strip()
-                if block != "":
-                    fp = f"{ch_dir}/b{b:04}.txt"
-                    with open(fp,"w") as f:
-                        f.write(block)
-                    b += 1
-
-            new_cnt = 0 
-            while True:
-                driver.get(url)
-                time.sleep(0.5)
-                url = driver.current_url
-                ActionChains(driver).key_down(Keys.ARROW_RIGHT).key_up(Keys.ARROW_RIGHT).perform()
-                time.sleep(0.5)
-                c_url = driver.current_url
-                if len(c_url.split('/')) != len(url.split('/')):
-                    if print_progress:
-                        tui.place_text(f"No more accessable chapter texts {dest}")
+            if url != "":
+                if print_progress:
+                    tui.place_text(f"Getting: {dest}/{ch}")
+                driver.get(f'about:reader?url={url}')
+                time.sleep(2)
+                text = driver.find_element(By.CLASS_NAME,"moz-reader-content").text
+                if len(text) < 100:
+                    print(f"Could not fetch {dest}/{ch}. Fetched text: {text}", file=logfile)
+                    os.remove(ch_dir)
                     done = True
                     break
-                new = url != c_url
-                url = c_url
-                if new:
-                    with open(url_fp,"w") as urlf:
-                        urlf.write(str(url))
-                    with open(tch_fp,"w") as chf:
-                        chf.write(str(ch+1))
+                with open(full_txt_fp,"w") as f:
+                    f.write(text)
+            else:
+                if not os.path.isfile(full_txt_fp):
+                    done = True
                     break
-                else:
-                    new_cnt += 1 
-                    if new_cnt > 5: 
+                with open(full_txt_fp,"r") as f:
+                    text = f.read()
+            text_to_blocks(tui, dest, text, ch, ch_dir, url)
+            if url == "":
+                with open(tch_fp,"w") as chf:
+                    chf.write(str(ch+1))
+            else:
+                new_cnt = 0 
+                while True:
+                    driver.get(url)
+                    time.sleep(0.5)
+                    url = driver.current_url
+                    ActionChains(driver).key_down(Keys.ARROW_RIGHT).key_up(Keys.ARROW_RIGHT).perform()
+                    time.sleep(0.5)
+                    c_url = driver.current_url
+                    if len(c_url.split('/')) != len(url.split('/')):
+                        if print_progress:
+                            tui.place_text(f"No more accessable chapter texts {dest}")
                         done = True
                         break
+                    new = url != c_url
+                    url = c_url
+                    if new:
+                        with open(url_fp,"w") as urlf:
+                            urlf.write(str(url))
+                        with open(tch_fp,"w") as chf:
+                            chf.write(str(ch+1))
+                        break
+                    else:
+                        new_cnt += 1 
+                        if new_cnt > 5: 
+                            done = True
+                            break
         driver.quit()
         return True
     except Exception as e:
@@ -172,6 +152,49 @@ def worker(dest, tui):
     finally:
         driver.quit()
         return True
+
+def text_to_blocks(tui, dest, text, ch, ch_dir, url):
+    folder = f"output/{dest}"
+    working = f"{folder}/.working"
+    txt_dir = f"{working}/txt"
+    if not os.path.isdir(folder):
+        os.makedirs(folder)
+    if not os.path.isdir(working):
+        os.makedirs(working)
+    if not os.path.isdir(txt_dir):
+        os.makedirs(txt_dir)
+    ch_dir = f"{txt_dir}/ch{ch:04}"
+    if not os.path.isdir(ch_dir):
+        os.makedirs(ch_dir)
+    else:
+        for dir in os.listdir(ch_dir):
+            if re.search(r"b\d{4}.txt", dir):
+                os.remove(f"{ch_dir}/{dir}")
+    text = clean_text(text)
+    if 'novelfull' in url:
+        text = novel_full_clean(text)
+    if 'libread' in url or 'freewebnovel.noveleast' in url:
+        text = libread_clean(text)
+
+    sentances = text.split('\n')
+    if not re.search('chapter', sentances[0], re.IGNORECASE):
+        sentances = [f"chapter {ch}"] + sentances
+
+    blocks = [" ".join(sentances[i:i+2]).strip() for i in range(0, len(sentances), 2)]
+    text = "\n".join(blocks)
+
+
+    if print_text:
+        tui.place_text(text)
+    b = 0 
+    for block in blocks:
+        block = block.strip()
+        if block != "":
+            fp = f"{ch_dir}/b{b:04}.txt"
+            with open(fp,"w") as f:
+                f.write(block)
+            b += 1
+
 def clean_text(text):
     text = clean(text, lower=False, no_urls=True, replace_with_url="", to_ascii=True)
     text = expand_contractions(remove_emoji(uncensor_text(misc_clean(text))))
