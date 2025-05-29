@@ -148,7 +148,7 @@ def play_ch(speed,book,tui):
         if dur-t <= 0:
             break
 
-        x, timedOut = timedKey(timeout=-1 if not unpaused else (dur-t)/speed, resetOnInput = False, allowCharacters=" ptwsjkb",pollRate = pollRate, eatInput = True, newline=False,delayedEatInput=True, ignoreCase=True)
+        x, timedOut = timedKey(timeout=-1 if not unpaused else (dur-t)/speed, resetOnInput = False, allowCharacters=" ptwsjkb-",pollRate = pollRate, eatInput = True, newline=False,delayedEatInput=True, ignoreCase=True)
         if timedOut:
             break
 
@@ -166,6 +166,8 @@ def play_ch(speed,book,tui):
             unpaused = not unpaused
         if x == 't':
             return 1 
+        if x == '-':
+            subprocess.run(["shutdown", "now"]) 
         if x in "jk":
             with safer.open(get_t_fp(book),"r") as tf:
                 t = float(tf.read())
